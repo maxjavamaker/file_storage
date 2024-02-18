@@ -14,13 +14,16 @@ import java.util.HashMap;
 public class DocumentImplTest {
 
     String text = "Hello, world!";
+    String text2 = "Hello, world!";
     byte[] byteArray = text.getBytes(StandardCharsets.UTF_8);
     URI uri;
+    URI uri2;
 
     @BeforeEach
     public void setup() {
         try {
             uri = new URI("file");
+            uri2 = new URI("file");
         }
         catch(URISyntaxException e){
         }
@@ -141,5 +144,26 @@ public class DocumentImplTest {
         document.setMetadataValue("author", "james patterson");
 
         assertEquals(hashMap, document.getMetadata());
+    }
+
+    @Test
+    public void hashCodeTest(){
+        Document document1 = new DocumentImpl(uri, text);
+        Document document2 = new DocumentImpl(uri2, text2);
+        assertTrue(document1.hashCode() == document2.hashCode());
+
+    }
+
+    @Test
+    public void getBinaryFromTextDocument(){
+        Document document = new DocumentImpl(uri, text);
+        assertNull(document.getDocumentBinaryData());
+    }
+
+    @Test
+    public void getTextFromBinaryDocument(){
+        byte[] bytes = text.getBytes();
+        Document document = new DocumentImpl(uri, bytes);
+        assertNull(document.getDocumentTxt());
     }
 }

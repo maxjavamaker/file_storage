@@ -30,7 +30,7 @@ public class DocumentStoreImpl implements DocumentStore {
             throw new IllegalArgumentException();
         }
 
-        return this.documents.get(uri).setMetadataValue(key, value);
+        return documents.get(uri).setMetadataValue(key, value);
     }
 
     /**

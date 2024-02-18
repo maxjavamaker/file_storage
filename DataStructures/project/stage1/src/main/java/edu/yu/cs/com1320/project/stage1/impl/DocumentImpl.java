@@ -40,12 +40,9 @@ public class DocumentImpl implements Document {
         if (key == null || key.isEmpty()) {
             throw new IllegalArgumentException();
         }
-        if (this.metadata.containsKey(key)){
-            return this.metadata.replace(key, value);
-        }
-        else{
-            return this.metadata.put(key, value);
-        }
+
+        return this.metadata.put(key, value);
+
     }
 
     /**
@@ -57,7 +54,7 @@ public class DocumentImpl implements Document {
         if (key == null || key.isEmpty()) {
             throw new IllegalArgumentException();
         }
-        return this.metadata.get(key);
+        return metadata.get(key);
     }
 
     /**
