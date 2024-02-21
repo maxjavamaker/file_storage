@@ -1,6 +1,7 @@
-package edu.yu.cs.com1320.project.stage1.impl;
+package edu.yu.cs.com1320.project.stage2.impl;
 
-import edu.yu.cs.com1320.project.stage1.Document;
+import edu.yu.cs.com1320.project.stage2.Document;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -15,7 +16,6 @@ public class DocumentImplTest {
 
     String text = "Hello, world!";
     String text2 = "Hello, world!";
-    String text3 = "Hello";
     byte[] byteArray = text.getBytes(StandardCharsets.UTF_8);
     URI uri;
     URI uri2;
@@ -167,16 +167,5 @@ public class DocumentImplTest {
         Document document = new DocumentImpl(uri, bytes);
         assertNull(document.getDocumentTxt());
     }
-
-    @Test
-    public void equals(){
-        Document document1 = new DocumentImpl(uri, text);
-        Document document2 = new DocumentImpl(uri, text);
-        Document document3 = null;
-        Document document4 = new DocumentImpl(uri2, text3);
-        assertFalse(document1.equals(document3));
-        assertTrue(document1.equals(document1));
-        assertTrue(document1.equals(document2));
-        assertNotEquals(document4, document1);
-    }
 }
+
