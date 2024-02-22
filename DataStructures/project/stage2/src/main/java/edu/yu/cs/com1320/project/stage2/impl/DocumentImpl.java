@@ -94,7 +94,4 @@ public class DocumentImpl implements Document {
         }
         return this.hashCode() == s.hashCode();
     }
-
-
-
 }

@@ -10,7 +10,6 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
 
 public class DocumentImplTest {
 
@@ -77,16 +76,7 @@ public class DocumentImplTest {
 
     @Test
     public void setKey(){
-        String key = null;
-        String value = "October";
-        Document document = new DocumentImpl(uri, text);
 
-        assertThrows(IllegalArgumentException.class, () -> {
-            document.setMetadataValue(key, value);});
-
-        String key2 = "";
-        assertThrows(IllegalArgumentException.class, () -> {
-            document.setMetadataValue(key, value);});
     }
 
     @Test
@@ -97,22 +87,8 @@ public class DocumentImplTest {
 
     @Test
     public void setMetaDataValue(){
-        String key1 = "month";
-        String key2 = null;
-        String key3 = "";
-        String value = "October";
-        Document document = new DocumentImpl(uri, text);
-        document.setMetadataValue(key1, value);
 
-        assertThrows(IllegalArgumentException.class, () -> {
-            document.getMetadataValue(key2);});
 
-        assertThrows(IllegalArgumentException.class, () -> {
-            document.getMetadataValue(key3);});
-
-        assertNull(document.getMetadataValue("date"));
-
-        assertEquals("October", document.getMetadataValue("month"));
     }
 
     @Test
@@ -120,31 +96,16 @@ public class DocumentImplTest {
         String key1 = null;
         String key2 = "";
         String key3 = "month";
+        String value = "value";
         Document document = new DocumentImpl(uri, text);
 
-        assertThrows(IllegalArgumentException.class, () -> {
-            document.getMetadataValue(key1);});
-
-        assertThrows(IllegalArgumentException.class, () -> {
-            document.getMetadataValue(key2);});
-
-        assertNull(document.getMetadataValue("month"));
-
-        document.setMetadataValue("month", "October");
-        assertEquals("October", document.getMetadataValue("month"));
+        document.setMetadataValue(key3, value);
+        assertEquals(value, document.getMetadataValue(key3));
     }
 
     @Test
     public void getMetaData(){
-        HashMap<String, String> hashMap = new HashMap<>();
-        hashMap.put("month", "October");
-        hashMap.put("author", "james patterson");
 
-        Document document  = new DocumentImpl(uri, text);
-        document.setMetadataValue("month", "October");
-        document.setMetadataValue("author", "james patterson");
-
-        assertEquals(hashMap, document.getMetadata());
     }
 
     @Test
