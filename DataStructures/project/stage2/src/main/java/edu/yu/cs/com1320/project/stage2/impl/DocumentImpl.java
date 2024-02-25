@@ -1,7 +1,8 @@
 package edu.yu.cs.com1320.project.stage2.impl;
 
+import edu.yu.cs.com1320.project.impl.HashTableImpl;
 import edu.yu.cs.com1320.project.stage2.Document;
-import edu.yu.cs.com1320.project.stage2.HashTable;
+import edu.yu.cs.com1320.project.HashTable;
 
 import java.net.URI;
 import java.util.Arrays;
@@ -34,8 +35,12 @@ public class DocumentImpl implements Document {
      * @param key   key of document metadata to store a value for
      * @param value value to store
      * @return old value, or null if there was no old value
+     * @throws IllegalArgumentException if the key is null or blank
      */
     public String setMetadataValue(String key, String value) {
+        if (key == null || key.isEmpty()) {
+            throw new IllegalArgumentException();
+        }
 
         return this.metadata.put(key, value);
 
@@ -44,8 +49,12 @@ public class DocumentImpl implements Document {
     /**
      * @param key metadata key whose value we want to retrieve
      * @return corresponding value, or null if there is no such key
+     * @throws IllegalArgumentException if the key is null or blank
      */
     public String getMetadataValue(String key) {
+        if (key == null || key.isEmpty()) {
+            throw new IllegalArgumentException();
+        }
 
         return metadata.get(key);
     }

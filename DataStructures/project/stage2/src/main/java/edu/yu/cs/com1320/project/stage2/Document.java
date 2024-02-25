@@ -1,5 +1,7 @@
 package edu.yu.cs.com1320.project.stage2;
 
+import edu.yu.cs.com1320.project.HashTable;
+
 import java.net.URI;
 
 public interface Document

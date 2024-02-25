@@ -1,8 +1,9 @@
 package edu.yu.cs.com1320.project.stage2.impl;
 
+import edu.yu.cs.com1320.project.impl.HashTableImpl;
 import edu.yu.cs.com1320.project.stage2.Document;
 import edu.yu.cs.com1320.project.stage2.DocumentStore;
-import edu.yu.cs.com1320.project.stage2.HashTable;
+import edu.yu.cs.com1320.project.HashTable;
 
 import java.io.*;
 import java.net.URI;

@@ -1,7 +1,8 @@
 package edu.yu.cs.com1320.project.stage2.impl;
 
+import edu.yu.cs.com1320.project.impl.HashTableImpl;
 import edu.yu.cs.com1320.project.stage2.Document;
-import edu.yu.cs.com1320.project.stage2.HashTable;
+import edu.yu.cs.com1320.project.HashTable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -105,6 +106,20 @@ public class HashTableImplTest {
         documentTable.put(document1, null);
         assertEquals(0, documentTable.size());
 
+    }
+
+    @Test
+    public void keySet(){
+        documentTable.put(document1, uri1);
+        documentTable.put(document2, uri2);
+        System.out.println(documentTable.keySet());
+    }
+
+    @Test
+    public void values(){
+        documentTable.put(document1, uri1);
+        documentTable.put(document2, uri2);
+        System.out.println(documentTable.values());
     }
 
 }

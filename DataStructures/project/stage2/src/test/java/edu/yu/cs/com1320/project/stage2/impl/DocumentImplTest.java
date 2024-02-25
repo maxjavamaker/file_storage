@@ -76,6 +76,16 @@ public class DocumentImplTest {
 
     @Test
     public void setKey(){
+        String key = null;
+        String value = "October";
+        Document document = new DocumentImpl(uri, text);
+
+        assertThrows(IllegalArgumentException.class, () -> {
+            document.setMetadataValue(key, value);});
+
+        String key2 = "";
+        assertThrows(IllegalArgumentException.class, () -> {
+            document.setMetadataValue(key, value);});
 
     }
 
@@ -87,7 +97,11 @@ public class DocumentImplTest {
 
     @Test
     public void setMetaDataValue(){
-
+        Document document = new DocumentImpl(uri, text);
+        assertThrows(IllegalArgumentException.class, () -> document.setMetadataValue(null, text));
+        assertThrows(IllegalArgumentException.class, () -> document.setMetadataValue("", text));
+        assertNull(document.setMetadataValue("value1", "key1"));
+        assertEquals("key1", document.setMetadataValue("value1", "key2"));
 
     }
 

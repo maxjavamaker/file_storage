@@ -1,4 +1,4 @@
-package edu.yu.cs.com1320.project.stage2;
+package edu.yu.cs.com1320.project;
 
 import java.util.Collection;
 import java.util.Set;

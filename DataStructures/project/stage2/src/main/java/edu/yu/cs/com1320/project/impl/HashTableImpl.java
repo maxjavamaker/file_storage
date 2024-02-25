@@ -1,6 +1,6 @@
-package edu.yu.cs.com1320.project.stage2.impl;
+package edu.yu.cs.com1320.project.impl;
 
-import edu.yu.cs.com1320.project.stage2.HashTable;
+import edu.yu.cs.com1320.project.HashTable;
 import java.util.*;
 
 /**
@@ -10,10 +10,13 @@ import java.util.*;
  * @param <Value>
  */
 public class HashTableImpl<Key, Value> implements HashTable<Key, Value> {
+    private int entries;
+    private Node<Key, Value>[] nodes;
 
-    private int entries = 0;
-
-    private Node<Key, Value>[] nodes = new Node[5];
+    public HashTableImpl(){
+        entries = 0;
+        nodes = new Node[5];
+    }
 
     private class Node<Key, Value>{
         private Key key;
@@ -164,7 +167,7 @@ public class HashTableImpl<Key, Value> implements HashTable<Key, Value> {
                 currentNode = currentNode.next;
             }
         }
-        return Collections.unmodifiableSet(valueSet);
+        return Collections.unmodifiableCollection(valueSet);
     }
 
     /**
