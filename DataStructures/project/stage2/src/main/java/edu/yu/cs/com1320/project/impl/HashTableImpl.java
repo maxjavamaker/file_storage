@@ -159,15 +159,15 @@ public class HashTableImpl<Key, Value> implements HashTable<Key, Value> {
      * @see java.util.Collections#unmodifiableCollection(Collection)
      */
     public Collection<Value> values() {
-        Set<Value> valueSet = new HashSet<>();
+        ArrayList<Value> valueList = new ArrayList<>();
         for (int i = 0; i < nodes.length; i++){
             Node <Key, Value> currentNode = nodes[i];
             while(currentNode != null){
-                valueSet.add(currentNode.value);
+                valueList.add(currentNode.value);
                 currentNode = currentNode.next;
             }
         }
-        return Collections.unmodifiableCollection(valueSet);
+        return Collections.unmodifiableCollection(valueList);
     }
 
     /**

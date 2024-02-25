@@ -63,7 +63,16 @@ public class DocumentImpl implements Document {
      * @return a COPY of the metadata saved in this document
      */
     public HashTable<String, String> getMetadata() {
-        return metadata;
+        HashTable<String, String> copy = new HashTableImpl<>();
+        String key;
+        String value;
+        for (String keys : metadata.keySet()){
+            key = keys;
+            value = metadata.get(keys);
+            copy.put(key, value);
+        }
+
+        return copy;
     }
 
     /**
