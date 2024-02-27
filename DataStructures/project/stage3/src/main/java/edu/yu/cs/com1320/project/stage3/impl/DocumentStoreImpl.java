@@ -1,25 +1,24 @@
 package edu.yu.cs.com1320.project.stage3.impl;
 
+import edu.yu.cs.com1320.project.Stack;
 import edu.yu.cs.com1320.project.impl.HashTableImpl;
+import edu.yu.cs.com1320.project.impl.StackImpl;
 import edu.yu.cs.com1320.project.stage3.Document;
 import edu.yu.cs.com1320.project.stage3.DocumentStore;
 import edu.yu.cs.com1320.project.HashTable;
+import edu.yu.cs.com1320.project.undo.Command;
 
 import java.io.*;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.function.Consumer;
 
 public class DocumentStoreImpl implements DocumentStore {
     private HashTable<URI, Document> documents = new HashTableImpl<>();
-
-    /**
-     * the two document formats supported by this document store.
-     * Note that TXT means plain text, i.e. a String.
-     */
+    private Stack<Command> stack = new StackImpl<>();
 
     /**
      * set the given key-value metadata pair for the document at the given uri
-     *
      * @param uri
      * @param key
      * @param value
@@ -30,6 +29,10 @@ public class DocumentStoreImpl implements DocumentStore {
         if (uri == null || uri.toString().isEmpty() || key == null || key.isEmpty() || !this.documents.containsKey(uri)) {
             throw new IllegalArgumentException();
         }
+
+        Consumer<URI> consumer = revertMetadata -> setMetadata(uri, key, getMetadata(uri, key));
+        Command command = new Command(uri, consumer);
+        stack.push(command);
 
         return documents.get(uri).setMetadataValue(key, value);
     }
@@ -63,9 +66,10 @@ public class DocumentStoreImpl implements DocumentStore {
             throw new IllegalArgumentException();
         }
 
-        if (input == null){
-            documents.put(uri, null);
-            return 0;
+        if (documents.containsKey(uri)){
+            int hashCode = documents.get(uri).hashCode();
+            delete(uri);
+            return hashCode;
         }
 
         if (format == DocumentFormat.BINARY){
@@ -93,14 +97,54 @@ public class DocumentStoreImpl implements DocumentStore {
      * @return true if the document is deleted, false if no document exists with that URI
      */
     public boolean delete(URI url){
+
+        Consumer<URI> consumer = restoreDocument -> add(url, documents.get(url));
+        Command command = new Command(url, consumer);
+        stack.push(command);
+
         return documents.put(url, null) != null;
     }
 
     private int add(URI uri, Document document){
         if (documents.containsKey(uri)){
+
+            Consumer<URI> consumer = restoreDocument -> add(uri, document);
+            Command command = new Command(uri, consumer);
+            stack.push(command);
+
             return documents.put(uri, document).hashCode();
         }
+
+        Consumer<URI> consumer = restoreDocument -> delete(uri);
+        Command command = new Command(uri, consumer);
+        stack.push(command);
+
         documents.put(uri, document);
         return 0;
+    }
+
+    /**
+     * undo the last put or delete command
+     * @throws IllegalStateException if there are no actions to be undone, i.e. the command stack is empty
+     */
+    public void undo() throws IllegalStateException{
+        if (stack.size() == 0){
+            throw new IllegalStateException();
+        }
+
+        stack.pop().undo();
+        stack.pop();
+    }
+
+    /**
+     * undo the last put or delete that was done with the given URI as its key
+     * @param url
+     * @throws IllegalStateException if there are no actions on the command stack for the given URI
+     */
+    public void undo(URI url) throws IllegalStateException{
+        if (stack.size() == 0){
+            throw new IllegalStateException();
+        }
+
     }
 }
