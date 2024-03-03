@@ -1,6 +1,9 @@
 package edu.yu.cs.com1320.project.impl;
 
+import com.sun.jdi.Value;
 import edu.yu.cs.com1320.project.HashTable;
+import org.w3c.dom.Node;
+
 import java.util.*;
 
 /**
@@ -11,11 +14,12 @@ import java.util.*;
  */
 public class HashTableImpl<Key, Value> implements HashTable<Key, Value> {
     private int entries;
+    private int length = 1;
     private Node<Key, Value>[] nodes;
 
     public HashTableImpl(){
         entries = 0;
-        nodes = new Node[5];
+        nodes = new Node[length];
     }
 
     private class Node<Key, Value>{
@@ -55,6 +59,7 @@ public class HashTableImpl<Key, Value> implements HashTable<Key, Value> {
      * @return if the key was already present in the HashTable, return the previous value stored for the key. If the key was not already present, return null.
      */
     public Value put(Key key, Value value) {
+
         if (value == null) {
             return delete(key);
         }
@@ -178,6 +183,36 @@ public class HashTableImpl<Key, Value> implements HashTable<Key, Value> {
     }
 
     private int getHash(Key key) {
-        return Math.abs(key.hashCode()) % 5;
+        return Math.abs(key.hashCode()) % length;
+    }
+
+    private void resize(){
+        length = length * 2;
+        Node<Key, Value>[] resize = new Node[length];
+
+        for (int i = 0; i < nodes.length; i++){
+            if (nodes[i] == null){
+                continue;
+            }
+            Node<Key, Value> currentNode = nodes[i];
+            while(currentNode != null) {
+                if (resize[getHash(currentNode.key)] == null){
+                    resize[getHash(currentNode.key)] = currentNode;
+                }
+
+                else{
+                    Node<Key, Value> currentResizeNode = resize[getHash(currentNode.key)];
+                    while(currentResizeNode.next != null){
+                        currentResizeNode = currentResizeNode.next;
+                    }
+
+                    currentResizeNode.next = currentNode;
+                }
+
+                currentNode = currentNode.next;
+            }
+        }
+
+        nodes = resize;
     }
 }

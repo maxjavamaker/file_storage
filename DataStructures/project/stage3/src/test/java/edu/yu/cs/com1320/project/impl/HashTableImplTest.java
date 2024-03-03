@@ -18,8 +18,12 @@ public class HashTableImplTest {
     String value1;
     URI uri1;
     URI uri2;
+    URI uri3;
+    URI uri4;
     Document document1;
     Document document2;
+    Document document3;
+    Document document4;
     HashTable<String, String> stringTable;
     HashTable<Document, URI> documentTable;
     HashTable<Integer, Document> integerTable;
@@ -34,12 +38,16 @@ public class HashTableImplTest {
         try {
             uri1 = new URI("uri1");
             uri2 = new URI("12334");
+            uri3 = new URI("abba");
+            uri4 = new URI("ima");
         }
         catch(URISyntaxException e){
 
         }
         document1 = new DocumentImpl(uri1, text1);
         document2 = new DocumentImpl(uri1, key1);
+        document3 = new DocumentImpl(uri2, text1);
+        document4 = new DocumentImpl(uri3, text1);
     }
 
     @Test
@@ -88,6 +96,7 @@ public class HashTableImplTest {
 
         assertTrue(documentTable.containsKey(document1));
         assertTrue(documentTable.containsKey(document2));
+
     }
 
     @Test
@@ -113,14 +122,22 @@ public class HashTableImplTest {
     public void keySet(){
         documentTable.put(document1, uri1);
         documentTable.put(document2, uri2);
-        System.out.println(documentTable.keySet());
     }
 
     @Test
     public void values(){
         documentTable.put(document1, uri1);
         documentTable.put(document2, uri2);
-        System.out.println(documentTable.values());
+    }
+
+    @Test
+    public void resize(){
+        documentTable.put(document1, uri1);
+        documentTable.put(document2, uri2);
+        documentTable.put(document3, uri3);
+        documentTable.put(document4, uri4);
+
+
     }
 
 }

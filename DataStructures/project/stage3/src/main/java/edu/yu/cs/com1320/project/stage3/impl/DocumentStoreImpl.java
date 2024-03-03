@@ -30,9 +30,11 @@ public class DocumentStoreImpl implements DocumentStore {
             throw new IllegalArgumentException();
         }
 
-        Consumer<URI> consumer = revertMetadata -> setMetadata(uri, key, getMetadata(uri, key));
-        Command command = new Command(uri, consumer);
-        stack.push(command);
+        if (getMetadata(uri, key) != null) {
+            Consumer<URI> consumer = revertMetadata -> documents.get(uri).setMetadataValue(key, documents.get(uri).getMetadataValue(key));
+            Command command = new Command(uri, consumer);
+            stack.push(command);
+        }
 
         return documents.get(uri).setMetadataValue(key, value);
     }
@@ -66,10 +68,16 @@ public class DocumentStoreImpl implements DocumentStore {
             throw new IllegalArgumentException();
         }
 
-        if (documents.containsKey(uri)){
-            int hashCode = documents.get(uri).hashCode();
-            delete(uri);
-            return hashCode;
+        if (input == null){
+            if(documents.containsKey(uri)) {
+                int hashCode = documents.get(uri).hashCode();
+                delete(uri);
+                return hashCode;
+            }
+
+            else{
+                return 0;
+            }
         }
 
         if (format == DocumentFormat.BINARY){
@@ -143,8 +151,23 @@ public class DocumentStoreImpl implements DocumentStore {
      */
     public void undo(URI url) throws IllegalStateException{
         if (stack.size() == 0){
-            throw new IllegalStateException();
+            throw new IllegalStateException("The stack has no commands");
         }
 
+        Stack<Command> helper = new StackImpl<>();
+
+        while(!stack.peek().getUri().equals(url)){
+            helper.push(stack.pop());
+            if (stack.size() == 0){
+                throw new IllegalStateException("The stack has no commands with the specified url");
+            }
+        }
+
+        stack.pop().undo();
+        stack.pop();
+
+        while(helper.size() != 0){
+            stack.push(helper.pop());
+        }
     }
 }
