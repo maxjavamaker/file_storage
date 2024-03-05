@@ -3,8 +3,7 @@ package edu.yu.cs.com1320.project.stage3.impl;
 import edu.yu.cs.com1320.project.stage3.Document;
 import edu.yu.cs.com1320.project.stage3.DocumentStore;
 
-import edu.yu.cs.com1320.project.stage3.impl.DocumentImpl;
-import edu.yu.cs.com1320.project.stage3.impl.DocumentStoreImpl;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -309,5 +308,87 @@ class DocumentStoreImplTest {
         assertFalse(documentStore.delete(uri1));
     }
 
+    @Test
+    public void undoCreateMetadata(){
+        try {
+            documentStore.put(inputStream1, uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.setMetadata(uri1, key1, value1);
+            documentStore.undo();
+            assertNull(documentStore.getMetadata(uri1, key1));
+        }
+        catch(IOException e){
+
+        }
+    }
+
+    @Test
+    public void undoChangeMetaData(){
+        try {
+            documentStore.put(inputStream1, uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.setMetadata(uri1, key1, value1);
+            documentStore.setMetadata(uri1, key1, value2);
+            documentStore.undo();
+            assertEquals(value1, documentStore.getMetadata(uri1, key1));
+        }
+        catch(IOException e){
+
+        }
+    }
+
+    @Test
+    public void undoCreateDocument(){
+        try {
+            documentStore.put(inputStream1, uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.undo();
+            assertNull(documentStore.get(uri1));
+        }
+        catch(IOException e){
+
+        }
+    }
+
+    @Test
+    public void undoChangeDocument(){
+        try {
+            documentStore.put(inputStream1, uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(inputStream2, uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.undo();
+            Document document1 = new DocumentImpl(uri1, "text1");
+            assertEquals(document1, documentStore.get(uri1));
+        }
+        catch(IOException e){
+
+        }
+    }
+
+    @Test
+    public void undoDelete(){
+        try {
+            documentStore.put(inputStream1, uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.delete(uri1);
+            documentStore.undo();
+            assertNotNull(documentStore.get(uri1));
+        }
+        catch(IOException e){
+
+        }
+    }
+
+    @Test
+    public void undoLastURI(){
+        try {
+            documentStore.put(inputStream1, uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(inputStream2, uri2, DocumentStore.DocumentFormat.TXT);
+            documentStore.setMetadata(uri2, key1, value1);
+            documentStore.setMetadata(uri2, key2, value1);
+            documentStore.undo(uri1);
+            assertNull(documentStore.get(uri1));
+            documentStore.undo(uri2);
+            assertNull(documentStore.getMetadata(uri2, key2));
+        }
+        catch(IOException e){
+
+        }
+    }
 }
 

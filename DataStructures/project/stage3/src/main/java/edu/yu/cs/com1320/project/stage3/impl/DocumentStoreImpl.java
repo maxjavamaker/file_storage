@@ -14,14 +14,14 @@ import java.nio.charset.StandardCharsets;
 import java.util.function.Consumer;
 
 public class DocumentStoreImpl implements DocumentStore {
-    private HashTable<URI, Document> documents = new HashTableImpl<>();
-    private Stack<Command> stack = new StackImpl<>();
+    private final HashTable<URI, Document> documents = new HashTableImpl<>();
+    private final Stack<Command> stack = new StackImpl<>();
 
     /**
      * set the given key-value metadata pair for the document at the given uri
-     * @param uri
-     * @param key
-     * @param value
+     * @param uri;
+     * @param key;
+     * @param value;
      * @return the old value, or null if there was no previous value
      * @throws IllegalArgumentException if the uri is null or blank, if there is no document stored at that uri, or if the key is null or blank
      */
@@ -31,9 +31,16 @@ public class DocumentStoreImpl implements DocumentStore {
         }
 
         if (getMetadata(uri, key) != null) {
-            Consumer<URI> consumer = revertMetadata -> documents.get(uri).setMetadataValue(key, documents.get(uri).getMetadataValue(key));
-            Command command = new Command(uri, consumer);
-            stack.push(command);
+            Document previousDocument = documents.get(uri);
+            String previousValue = previousDocument.getMetadataValue(key);
+            Consumer<URI> consumer = revertMetadata -> previousDocument.setMetadataValue(key, previousValue);
+            stack.push(new Command(uri, consumer));
+        }
+
+        else{
+            Document previousDocument = documents.get(uri);
+            Consumer<URI> consumer = revertMetadata -> previousDocument.setMetadataValue(key, null);
+            stack.push(new Command(uri, consumer));
         }
 
         return documents.get(uri).setMetadataValue(key, value);
@@ -42,8 +49,8 @@ public class DocumentStoreImpl implements DocumentStore {
     /**
      * get the value corresponding to the given metadata key for the document at the given uri
      *
-     * @param uri
-     * @param key
+     * @param uri;
+     * @param key;
      * @return the value, or null if there was no value
      * @throws IllegalArgumentException if the uri is null or blank, if there is no document stored at that uri, or if the key is null or blank
      */
@@ -106,9 +113,9 @@ public class DocumentStoreImpl implements DocumentStore {
      */
     public boolean delete(URI url){
 
-        Consumer<URI> consumer = restoreDocument -> add(url, documents.get(url));
-        Command command = new Command(url, consumer);
-        stack.push(command);
+        Document previousDocument = documents.get(url);
+        Consumer<URI> consumer = restoreDocument -> documents.put(url, previousDocument);
+        stack.push(new Command(url, consumer));
 
         return documents.put(url, null) != null;
     }
@@ -116,14 +123,14 @@ public class DocumentStoreImpl implements DocumentStore {
     private int add(URI uri, Document document){
         if (documents.containsKey(uri)){
 
-            Consumer<URI> consumer = restoreDocument -> add(uri, document);
-            Command command = new Command(uri, consumer);
-            stack.push(command);
+            Document previousDocument = documents.get(uri);
+            Consumer<URI> consumer = restoreDocument -> documents.put(uri, previousDocument);
+            stack.push(new Command(uri, consumer));
 
             return documents.put(uri, document).hashCode();
         }
 
-        Consumer<URI> consumer = restoreDocument -> delete(uri);
+        Consumer<URI> consumer = restoreDocument -> documents.put(uri, null);
         Command command = new Command(uri, consumer);
         stack.push(command);
 
@@ -141,12 +148,12 @@ public class DocumentStoreImpl implements DocumentStore {
         }
 
         stack.pop().undo();
-        stack.pop();
+
     }
 
     /**
      * undo the last put or delete that was done with the given URI as its key
-     * @param url
+     * @param url;
      * @throws IllegalStateException if there are no actions on the command stack for the given URI
      */
     public void undo(URI url) throws IllegalStateException{
@@ -164,7 +171,6 @@ public class DocumentStoreImpl implements DocumentStore {
         }
 
         stack.pop().undo();
-        stack.pop();
 
         while(helper.size() != 0){
             stack.push(helper.pop());

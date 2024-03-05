@@ -1,8 +1,6 @@
 package edu.yu.cs.com1320.project.impl;
 
-import com.sun.jdi.Value;
 import edu.yu.cs.com1320.project.HashTable;
-import org.w3c.dom.Node;
 
 import java.util.*;
 
@@ -13,12 +11,14 @@ import java.util.*;
  * @param <Value>
  */
 public class HashTableImpl<Key, Value> implements HashTable<Key, Value> {
-    private int entries;
-    private int length = 1;
+    private float entries;
+    private int length;
     private Node<Key, Value>[] nodes;
 
     public HashTableImpl(){
+
         entries = 0;
+        length = 2;
         nodes = new Node[length];
     }
 
@@ -59,7 +59,6 @@ public class HashTableImpl<Key, Value> implements HashTable<Key, Value> {
      * @return if the key was already present in the HashTable, return the previous value stored for the key. If the key was not already present, return null.
      */
     public Value put(Key key, Value value) {
-
         if (value == null) {
             return delete(key);
         }
@@ -70,6 +69,7 @@ public class HashTableImpl<Key, Value> implements HashTable<Key, Value> {
         if (nodes[hash] == null){
             nodes[hash] = newNode;
             entries++;
+            checkToResize();
             return null;
         }
 
@@ -88,6 +88,7 @@ public class HashTableImpl<Key, Value> implements HashTable<Key, Value> {
         previousNode.next = newNode;
 
         entries++;
+        checkToResize();
         return null;
     }
 
@@ -130,17 +131,7 @@ public class HashTableImpl<Key, Value> implements HashTable<Key, Value> {
         if (key == null) {
             throw new NullPointerException();
         }
-        int hash = getHash(key);
-
-        Node<Key, Value> currentNode = nodes[hash];
-        while(currentNode != null){
-            if (currentNode.key.equals(key)){
-                return true;
-            }
-            currentNode = currentNode.next;
-        }
-
-        return false;
+        return keySet().contains(key);
     }
 
     /**
@@ -165,12 +156,8 @@ public class HashTableImpl<Key, Value> implements HashTable<Key, Value> {
      */
     public Collection<Value> values() {
         ArrayList<Value> valueList = new ArrayList<>();
-        for (int i = 0; i < nodes.length; i++){
-            Node <Key, Value> currentNode = nodes[i];
-            while(currentNode != null){
-                valueList.add(currentNode.value);
-                currentNode = currentNode.next;
-            }
+        for (Key key : keySet()){
+            valueList.add(get(key));
         }
         return Collections.unmodifiableCollection(valueList);
     }
@@ -179,40 +166,44 @@ public class HashTableImpl<Key, Value> implements HashTable<Key, Value> {
      * @return how entries there currently are in the HashTable
      */
     public int size() {
-        return entries;
+        return (int) entries;
     }
 
     private int getHash(Key key) {
         return Math.abs(key.hashCode()) % length;
     }
 
-    private void resize(){
-        length = length * 2;
-        Node<Key, Value>[] resize = new Node[length];
+    private int getNewHash(Key key) {
+        return Math.abs(key.hashCode()) % (length * 2);
+    }
 
-        for (int i = 0; i < nodes.length; i++){
-            if (nodes[i] == null){
-                continue;
+    private void checkToResize(){
+        if (entries/length >= .75){
+            resize();
+        }
+    }
+
+    private void resize() {
+        Node<Key, Value>[] resizedNode = new Node[length * 2];
+
+        for (Key key : keySet()) {
+            Node<Key, Value> newNode = new Node<>(key, get(key), null);
+
+            if (resizedNode[getNewHash(key)] == null) {
+                resizedNode[getNewHash(key)] = newNode;
             }
-            Node<Key, Value> currentNode = nodes[i];
-            while(currentNode != null) {
-                if (resize[getHash(currentNode.key)] == null){
-                    resize[getHash(currentNode.key)] = currentNode;
+
+            else {
+                Node<Key, Value> currentNode = resizedNode[getNewHash(key)];
+                while (currentNode.next != null) {
+                    currentNode = currentNode.next;
                 }
 
-                else{
-                    Node<Key, Value> currentResizeNode = resize[getHash(currentNode.key)];
-                    while(currentResizeNode.next != null){
-                        currentResizeNode = currentResizeNode.next;
-                    }
-
-                    currentResizeNode.next = currentNode;
-                }
-
-                currentNode = currentNode.next;
+                currentNode.next = newNode;
             }
         }
 
-        nodes = resize;
+        length = length * 2;
+        nodes = resizedNode;
     }
 }
