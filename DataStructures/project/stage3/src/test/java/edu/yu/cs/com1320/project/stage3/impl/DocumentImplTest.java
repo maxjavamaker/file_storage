@@ -123,8 +123,6 @@ public class DocumentImplTest {
         Document document1 = new DocumentImpl(uri, text);
         document1.setMetadataValue("key1", "value1");
         document1.setMetadataValue("key2", "value2");
-        System.out.println(document1.getMetadata().keySet());
-        System.out.println(document1.getMetadata().values());
     }
 
     @Test

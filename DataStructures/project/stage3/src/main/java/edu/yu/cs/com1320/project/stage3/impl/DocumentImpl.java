@@ -7,6 +7,7 @@ import edu.yu.cs.com1320.project.HashTable;
 import java.net.URI;
 import java.util.Arrays;
 
+
 public class DocumentImpl implements Document {
     private String text;
     private URI uri;

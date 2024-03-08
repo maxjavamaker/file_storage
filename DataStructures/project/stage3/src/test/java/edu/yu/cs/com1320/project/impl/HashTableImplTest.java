@@ -108,21 +108,10 @@ public class HashTableImplTest {
     @Test
     public void size(){
         stringTable.put("1", "1");
-        System.out.println(stringTable.keySet());
-        System.out.println(stringTable.values());
         stringTable.put("2", "2");
-        System.out.println(stringTable.keySet());
-        System.out.println(stringTable.values());
         stringTable.put("3", "3");
-        System.out.println(stringTable.keySet());
-        System.out.println(stringTable.values());
         stringTable.put("4", "4");
-        System.out.println(stringTable.keySet());
-        System.out.println(stringTable.values());
         stringTable.put("5", "5");
-        System.out.println(stringTable.keySet());
-        System.out.println(stringTable.values());
-
     }
 
     @Test
@@ -134,8 +123,6 @@ public class HashTableImplTest {
     @Test
     public void values(){
         documentTable.put(document1, uri1);
-        System.out.println(documentTable.values());
         documentTable.put(document2, uri2);
-        System.out.println(documentTable.values());
     }
 }
