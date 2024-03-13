@@ -3,6 +3,9 @@ package edu.yu.cs.com1320.project.stage4;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 public interface DocumentStore
 {
@@ -13,6 +16,7 @@ public interface DocumentStore
     enum DocumentFormat{
         TXT,BINARY
     };
+
     /**
      * set the given key-value metadata pair for the document at the given uri
      * @param uri
@@ -35,7 +39,7 @@ public interface DocumentStore
      * @param input the document being put
      * @param url unique identifier for the document
      * @param format indicates which type of document format is being passed
-     * @return if there is no previous doc at the given URI, return 0. If there is a previous doc, return the hashCode of the previous doc. If InputStream is null, this is a call to delete, and thus return either the hashCode of the deleted doc or 0 if there is no doc to delete.
+     * @return if there is no previous doc at the given URI, return 0. If there is a previous doc, return the hashCode of the previous doc. If InputStream is null, this is a delete, and thus return either the hashCode of the deleted doc or 0 if there is no doc to delete.
      * @throws IOException if there is an issue reading input
      * @throws IllegalArgumentException if url or format are null
      */
@@ -67,4 +71,88 @@ public interface DocumentStore
      * @throws IllegalStateException if there are no actions on the command stack for the given URI
      */
     void undo(URI url) throws IllegalStateException;
+
+    //**********STAGE 4 ADDITIONS
+
+    /**
+     * Retrieve all documents whose text contains the given keyword.
+     * Documents are returned in sorted, descending order, sorted by the number of times the keyword appears in the document.
+     * Search is CASE SENSITIVE.
+     * @param keyword
+     * @return a List of the matches. If there are no matches, return an empty list.
+     */
+    List<Document> search(String keyword);
+
+    /**
+     * Retrieve all documents that contain text which starts with the given prefix
+     * Documents are returned in sorted, descending order, sorted by the number of times the prefix appears in the document.
+     * Search is CASE SENSITIVE.
+     * @param keywordPrefix
+     * @return a List of the matches. If there are no matches, return an empty list.
+     */
+    List<Document> searchByPrefix(String keywordPrefix);
+
+    /**
+     * Completely remove any trace of any document which contains the given keyword
+     * Search is CASE SENSITIVE.
+     * @param keyword
+     * @return a Set of URIs of the documents that were deleted.
+     */
+    Set<URI> deleteAll(String keyword);
+
+    /**
+     * Completely remove any trace of any document which contains a word that has the given prefix
+     * Search is CASE SENSITIVE.
+     * @param keywordPrefix
+     * @return a Set of URIs of the documents that were deleted.
+     */
+    Set<URI> deleteAllWithPrefix(String keywordPrefix);
+
+    /**
+     * @param keysValues metadata key-value pairs to search for
+     * @return a List of all documents whose metadata contains ALL OF the given values for the given keys. If no documents contain all the given key-value pairs, return an empty list.
+     */
+    List<Document> searchByMetadata(Map<String,String> keysValues);
+
+    /**
+     * Retrieve all documents whose text contains the given keyword AND which has the given key-value pairs in its metadata
+     * Documents are returned in sorted, descending order, sorted by the number of times the keyword appears in the document.
+     * Search is CASE SENSITIVE.
+     * @param keyword
+     * @param keysValues
+     * @return a List of the matches. If there are no matches, return an empty list.
+     */
+    List<Document> searchByKeywordAndMetadata(String keyword, Map<String,String> keysValues);
+
+    /**
+     * Retrieve all documents that contain text which starts with the given prefix AND which has the given key-value pairs in its metadata
+     * Documents are returned in sorted, descending order, sorted by the number of times the prefix appears in the document.
+     * Search is CASE SENSITIVE.
+     * @param keywordPrefix
+     * @return a List of the matches. If there are no matches, return an empty list.
+     */
+    List<Document> searchByPrefixAndMetadata(String keywordPrefix,Map<String,String> keysValues);
+
+    /**
+     * Completely remove any trace of any document which has the given key-value pairs in its metadata
+     * Search is CASE SENSITIVE.
+     * @return a Set of URIs of the documents that were deleted.
+     */
+    Set<URI> deleteAllWithMetadata(Map<String,String> keysValues);
+
+    /**
+     * Completely remove any trace of any document which contains the given keyword AND which has the given key-value pairs in its metadata
+     * Search is CASE SENSITIVE.
+     * @param keyword
+     * @return a Set of URIs of the documents that were deleted.
+     */
+    Set<URI> deleteAllWithKeywordAndMetadata(String keyword,Map<String,String> keysValues);
+
+    /**
+     * Completely remove any trace of any document which contains a word that has the given prefix AND which has the given key-value pairs in its metadata
+     * Search is CASE SENSITIVE.
+     * @param keywordPrefix
+     * @return a Set of URIs of the documents that were deleted.
+     */
+    Set<URI> deleteAllWithPrefixAndMetadata(String keywordPrefix,Map<String,String> keysValues);
 }

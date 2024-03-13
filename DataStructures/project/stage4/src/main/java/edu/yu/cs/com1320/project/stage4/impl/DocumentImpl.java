@@ -6,13 +6,17 @@ import edu.yu.cs.com1320.project.stage4.Document;
 
 import java.net.URI;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Set;
 
 
 public class DocumentImpl implements Document {
+    private boolean isBinary;
     private String text;
     private URI uri;
     private byte[] binaryData;
     private HashTable<String, String> metadata = new HashTableImpl<>();
+    private HashMap<String, Integer> words = new HashMap<>();
 
     public DocumentImpl(URI uri, String txt) {
         if (uri == null || txt == null || uri.toString().isEmpty() || txt.isEmpty()) {
@@ -21,6 +25,8 @@ public class DocumentImpl implements Document {
 
         this.uri = uri;
         this.text = txt;
+        this.isBinary = false;
+        addWordsToMap(txt); //add every word to a hashmap
     }
 
     public DocumentImpl(URI uri, byte[] binaryData) {
@@ -30,6 +36,7 @@ public class DocumentImpl implements Document {
 
         this.uri = uri;
         this.binaryData = binaryData;
+        this.isBinary = true;
     }
 
     /**
@@ -104,13 +111,24 @@ public class DocumentImpl implements Document {
      * @return the number of times the given words appears in the document. If it's a binary document, return 0.
      */
     public int wordCount(String word) {
+        if (isBinary){ //if the document is binary return 0
+            return 0;
+        }
 
+        return this.words.get(word); //return number of times the word occurs
     }
     /**
      * @return all the words that appear in the document
      */
     public Set<String> getWords(){
+        return this.words.keySet();
+    }
 
+    private void addWordsToMap(String txt){
+        String[] text = txt.split("[^a-zA-Z0-9]+");  //remove any characters that are not words or numbers
+        for (String word : text){
+            this.words.compute(word, (key, oldValue) -> (oldValue == null) ? 1 : oldValue + 1);  //if the value is null set to one, otherwise increase by 1
+        }
     }
 
     @Override

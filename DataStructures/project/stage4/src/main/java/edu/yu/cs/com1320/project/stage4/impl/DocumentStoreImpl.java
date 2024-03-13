@@ -4,6 +4,7 @@ import edu.yu.cs.com1320.project.HashTable;
 import edu.yu.cs.com1320.project.Stack;
 import edu.yu.cs.com1320.project.impl.HashTableImpl;
 import edu.yu.cs.com1320.project.impl.StackImpl;
+import edu.yu.cs.com1320.project.impl.TrieImpl;
 import edu.yu.cs.com1320.project.stage4.Document;
 import edu.yu.cs.com1320.project.stage4.DocumentStore;
 import edu.yu.cs.com1320.project.undo.Command;
@@ -12,10 +13,15 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.Comparator;
 import java.util.function.Consumer;
+import java.util.List;
+import java.util.Set;
+import java.util.Map;
 
 public class DocumentStoreImpl implements DocumentStore {
     private final HashTable<URI, Document> documents = new HashTableImpl<>();
+    private final TrieImpl<Document> documentTrie = new TrieImpl<>();
     private final Stack<Command> stack = new StackImpl<>();
 
     /**
@@ -31,18 +37,7 @@ public class DocumentStoreImpl implements DocumentStore {
             throw new IllegalArgumentException();
         }
 
-        if (getMetadata(uri, key) != null) {
-            Document previousDocument = documents.get(uri);
-            String previousValue = previousDocument.getMetadataValue(key);
-            Consumer<URI> consumer = revertMetadata -> previousDocument.setMetadataValue(key, previousValue);
-            stack.push(new Command(uri, consumer));
-        }
-
-        else{
-            Document previousDocument = documents.get(uri);
-            Consumer<URI> consumer = revertMetadata -> previousDocument.setMetadataValue(key, null);
-            stack.push(new Command(uri, consumer));
-        }
+        undoSetMetaDataLogic(uri, key, value);
 
         return documents.get(uri).setMetadataValue(key, value);
     }
@@ -90,13 +85,14 @@ public class DocumentStoreImpl implements DocumentStore {
 
         if (format == DocumentFormat.BINARY){
             Document document = new DocumentImpl(uri, input.readAllBytes());
-            return add(uri, document);
+            return add(uri, document); //don't add to trie if it's a binary document
         }
 
         else{
             byte[] bytes = input.readAllBytes();
             String text = new String(bytes, StandardCharsets.UTF_8);
             Document document = new DocumentImpl(uri, text);
+            addDocumentWordsToTrie(document); //add every word in the document to the trie
             return add(uri, document);
         }
     }
@@ -114,29 +110,34 @@ public class DocumentStoreImpl implements DocumentStore {
      */
     public boolean delete(URI url){
 
-        Document previousDocument = documents.get(url);
-        Consumer<URI> consumer = restoreDocument -> documents.put(url, previousDocument);
-        stack.push(new Command(url, consumer));
-
+        undoDeleteLogic(url);
+        removeDocumentWordsFromTrie(this.documents.get(url));  //remove every word in the document from the trie
         return documents.put(url, null) != null;
+    }
+
+    private void removeDocumentWordsFromTrie(Document document){
+        for (String word : document.getWords()){  //removing every word in the document from the trie
+            documentTrie.delete(word, document);
+        }
     }
 
     private int add(URI uri, Document document){
         if (documents.containsKey(uri)){
-
-            Document previousDocument = documents.get(uri);
-            Consumer<URI> consumer = restoreDocument -> documents.put(uri, previousDocument);
-            stack.push(new Command(uri, consumer));
+            undoDeleteLogic(uri);  //logic to undo changing document is the same as the logic for undoing delete
 
             return documents.put(uri, document).hashCode();
         }
 
-        Consumer<URI> consumer = restoreDocument -> documents.put(uri, null);
-        Command command = new Command(uri, consumer);
-        stack.push(command);
+        undoSetDocumentLogic(uri);
 
         documents.put(uri, document);
         return 0;
+    }
+
+    private void addDocumentWordsToTrie(Document document){
+        for (String word : document.getWords()){  //adding every word in the document to the trie
+            documentTrie.put(word, document);
+        }
     }
 
     /**
@@ -178,31 +179,63 @@ public class DocumentStoreImpl implements DocumentStore {
         }
     }
 
+    private void undoSetMetaDataLogic(URI uri, String key, String value){
+        if (getMetadata(uri, key) != null) {
+            Document previousDocument = documents.get(uri);
+            String previousValue = previousDocument.getMetadataValue(key);
+            Consumer<URI> consumer = revertMetadata -> previousDocument.setMetadataValue(key, previousValue);
+            stack.push(new Command(uri, consumer));
+        }
+
+        else{
+            Document previousDocument = documents.get(uri);
+            Consumer<URI> consumer = revertMetadata -> previousDocument.setMetadataValue(key, null);
+            stack.push(new Command(uri, consumer));
+        }
+    }
+
+    private void undoSetDocumentLogic(URI uri){
+        Consumer<URI> consumer = restoreDocument -> documents.put(uri, null);
+        Command command = new Command(uri, consumer);
+        stack.push(command);
+    }
+
+    private void undoDeleteLogic(URI url){  //same logic for changing a document
+        Document previousDocument = documents.get(url);
+        Consumer<URI> consumer = restoreDocument -> documents.put(url, previousDocument);
+        stack.push(new Command(url, consumer));
+    }
+
     /**
      * Retrieve all documents whose text contains the given keyword.
      * Documents are returned in sorted, descending order, sorted by the number of times the keyword appears in the document.
      * Search is CASE SENSITIVE.
-     * @param keyword
+     * @param keyword;
      * @return a List of the matches. If there are no matches, return an empty list.
      */
     public List<Document> search(String keyword) {
-
+        return documentTrie.getSorted(keyword, createComparator(keyword));  //create comparator and pass it to tries' get sorted method
     }
     /**
      * Retrieve all documents that contain text which starts with the given prefix
      * Documents are returned in sorted, descending order, sorted by the number of times the prefix appears in the document.
      * Search is CASE SENSITIVE.
-     * @param keywordPrefix
+     * @param keywordPrefix;
      * @return a List of the matches. If there are no matches, return an empty list.
      */
     public List<Document> searchByPrefix(String keywordPrefix){
-
+        documentTrie.getAllWithPrefixSorted(keywordPrefix, );
     }
 
+    private Comparator<Document> createComparator(String keyword){
+        Comparator<Document> wordCountComparator = Comparator.comparing(document -> document.wordCount(keyword));  //create a list that sort documents in order of the number of times a word appears
+        return wordCountComparator.reversed(); //return the comparator so its sorts in descending order
+    }
+]
     /**
      * Completely remove any trace of any document which contains the given keyword
      * Search is CASE SENSITIVE.
-     * @param keyword
+     * @param keyword;
      * @return a Set of URIs of the documents that were deleted.
      */
     public Set<URI> deleteAll(String keyword){
@@ -212,7 +245,7 @@ public class DocumentStoreImpl implements DocumentStore {
     /**
      * Completely remove any trace of any document which contains a word that has the given prefix
      * Search is CASE SENSITIVE.
-     * @param keywordPrefix
+     * @param keywordPrefix;
      * @return a Set of URIs of the documents that were deleted.
      */
     public Set<URI> deleteAllWithPrefix(String keywordPrefix){
@@ -221,7 +254,7 @@ public class DocumentStoreImpl implements DocumentStore {
 
     /**
      * @param keysValues metadata key-value pairs to search for
-     * @return a List of all documents whose metadata contains ALL OF the given values for the given keys. If no documents contain all the given key-value pairs, return an empty list.
+     * @return a List of all documents whose metadata contains all the given values for the given keys. If no documents contain all the given key-value pairs, return an empty list.
      */
     public List<Document> searchByMetadata(Map<String,String> keysValues){
 
@@ -231,8 +264,8 @@ public class DocumentStoreImpl implements DocumentStore {
      * Retrieve all documents whose text contains the given keyword AND which has the given key-value pairs in its metadata
      * Documents are returned in sorted, descending order, sorted by the number of times the keyword appears in the document.
      * Search is CASE SENSITIVE.
-     * @param keyword
-     * @param keysValues
+     * @param keyword;
+     * @param keysValues;
      * @return a List of the matches. If there are no matches, return an empty list.
      */
     public List<Document> searchByKeywordAndMetadata(String keyword, Map<String,String> keysValues){
@@ -243,7 +276,7 @@ public class DocumentStoreImpl implements DocumentStore {
      * Retrieve all documents that contain text which starts with the given prefix AND which has the given key-value pairs in its metadata
      * Documents are returned in sorted, descending order, sorted by the number of times the prefix appears in the document.
      * Search is CASE SENSITIVE.
-     * @param keywordPrefix
+     * @param keywordPrefix;
      * @return a List of the matches. If there are no matches, return an empty list.
      */
     public List<Document> searchByPrefixAndMetadata(String keywordPrefix,Map<String,String> keysValues){
@@ -262,7 +295,7 @@ public class DocumentStoreImpl implements DocumentStore {
     /**
      * Completely remove any trace of any document which contains the given keyword AND which has the given key-value pairs in its metadata
      * Search is CASE SENSITIVE.
-     * @param keyword
+     * @param keyword;
      * @return a Set of URIs of the documents that were deleted.
      */
     public Set<URI> deleteAllWithKeywordAndMetadata(String keyword,Map<String,String> keysValues){
@@ -272,7 +305,7 @@ public class DocumentStoreImpl implements DocumentStore {
     /**
      * Completely remove any trace of any document which contains a word that has the given prefix AND which has the given key-value pairs in its metadata
      * Search is CASE SENSITIVE.
-     * @param keywordPrefix
+     * @param keywordPrefix;
      * @return a Set of URIs of the documents that were deleted.
      */
     public Set<URI> deleteAllWithPrefixAndMetadata(String keywordPrefix,Map<String,String> keysValues){
