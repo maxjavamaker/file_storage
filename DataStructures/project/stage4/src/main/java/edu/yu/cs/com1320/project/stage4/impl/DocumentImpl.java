@@ -71,10 +71,10 @@ public class DocumentImpl implements Document {
      * @return a COPY of the metadata saved in this document
      */
     public HashTable<String, String> getMetadata() {
-        HashTable<String, String> copy = new HashTableImpl<>();
+        HashTable<String, String> copy = new HashTableImpl<>(); //create a copy of the hashtable holding all the metadata
         String key;
         String value;
-        for (String keys : metadata.keySet()){
+        for (String keys : metadata.keySet()){  //add all the metadata to the copy
             key = keys;
             value = metadata.get(keys);
             copy.put(key, value);
@@ -111,11 +111,8 @@ public class DocumentImpl implements Document {
      * @return the number of times the given words appears in the document. If it's a binary document, return 0.
      */
     public int wordCount(String word) {
-        if (isBinary){ //if the document is binary return 0
-            return 0;
-        }
+        return this.isBinary ? 0 : this.words.get(word); //if doc is binary return 0, else return word count
 
-        return this.words.get(word); //return number of times the word occurs
     }
     /**
      * @return all the words that appear in the document

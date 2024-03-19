@@ -13,11 +13,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
-import java.util.Comparator;
+import java.util.*;
 import java.util.function.Consumer;
-import java.util.List;
-import java.util.Set;
-import java.util.Map;
 
 public class DocumentStoreImpl implements DocumentStore {
     private final HashTable<URI, Document> documents = new HashTableImpl<>();
@@ -216,6 +213,11 @@ public class DocumentStoreImpl implements DocumentStore {
     public List<Document> search(String keyword) {
         return documentTrie.getSorted(keyword, createComparator(keyword));  //create comparator and pass it to tries' get sorted method
     }
+
+    private Comparator<Document> createComparator(String keyword){
+        Comparator<Document> wordCountComparator = Comparator.comparing(document -> document.wordCount(keyword));
+        return wordCountComparator.reversed();
+    }
     /**
      * Retrieve all documents that contain text which starts with the given prefix
      * Documents are returned in sorted, descending order, sorted by the number of times the prefix appears in the document.
@@ -224,14 +226,24 @@ public class DocumentStoreImpl implements DocumentStore {
      * @return a List of the matches. If there are no matches, return an empty list.
      */
     public List<Document> searchByPrefix(String keywordPrefix){
-        documentTrie.getAllWithPrefixSorted(keywordPrefix, );
+        return documentTrie.getAllWithPrefixSorted(keywordPrefix, createPrefixComparator(keywordPrefix)); //create comparator and pass it to tries' getAllWithPrefixSorted method
     }
 
-    private Comparator<Document> createComparator(String keyword){
-        Comparator<Document> wordCountComparator = Comparator.comparing(document -> document.wordCount(keyword));  //create a list that sort documents in order of the number of times a word appears
+    private Comparator<Document> createPrefixComparator(String keyword){
+        Comparator<Document> wordCountComparator = Comparator.comparingInt(document -> {  //create a list that sort documents in order of the number of times a prefix appears
+            int wordCount = 0;
+            for (String word : document.getWords()){
+                if (word.startsWith(keyword)){
+                    wordCount++;
+                }
+            }
+
+            return wordCount;
+        });
+
         return wordCountComparator.reversed(); //return the comparator so its sorts in descending order
     }
-]
+
     /**
      * Completely remove any trace of any document which contains the given keyword
      * Search is CASE SENSITIVE.
@@ -239,7 +251,13 @@ public class DocumentStoreImpl implements DocumentStore {
      * @return a Set of URIs of the documents that were deleted.
      */
     public Set<URI> deleteAll(String keyword){
+        Set<Document> docSet = (this.documentTrie.deleteAll(keyword)); //delete all documents at the key and add it to a set
+        Set<URI> uriSet = new HashSet<>();  //set of uris of deleted documents
+        for (Document document : docSet){  //add uris to the set
+            uriSet.add(document.getKey());
+        }
 
+        return uriSet;
     }
 
     /**
@@ -249,7 +267,13 @@ public class DocumentStoreImpl implements DocumentStore {
      * @return a Set of URIs of the documents that were deleted.
      */
     public Set<URI> deleteAllWithPrefix(String keywordPrefix){
+        Set<Document> docSet = (this.documentTrie.deleteAllWithPrefix(keywordPrefix)); //delete all documents whose key has the prefix and add it to a set
+        Set<URI> uriSet = new HashSet<>();  //set of uris of deleted documents
+        for (Document document : docSet){  //add uris to the set
+            uriSet.add(document.getKey());
+        }
 
+        return uriSet;
     }
 
     /**
@@ -257,7 +281,23 @@ public class DocumentStoreImpl implements DocumentStore {
      * @return a List of all documents whose metadata contains all the given values for the given keys. If no documents contain all the given key-value pairs, return an empty list.
      */
     public List<Document> searchByMetadata(Map<String,String> keysValues){
+        List<Document>  docList = new ArrayList<>();
 
+        for (Document doc : this.documents.values()){  //check each document in the hashtable to see if its metadata matches th keysValues map
+            boolean addToList = true;
+            for (String key : keysValues.keySet()){
+                if (!doc.getMetadata().get(key).equals(keysValues.get(key))){
+                    addToList = false;
+                    break;
+                }
+            }
+
+            if (addToList){  //if the metadata matches add the doc to the arrayList
+                docList.add(doc);
+            }
+        }
+
+        return docList;
     }
 
     /**
@@ -269,7 +309,17 @@ public class DocumentStoreImpl implements DocumentStore {
      * @return a List of the matches. If there are no matches, return an empty list.
      */
     public List<Document> searchByKeywordAndMetadata(String keyword, Map<String,String> keysValues){
+        List<Document> metadataDocList = this.searchByMetadata(keysValues);  //List of documents with matching metadata
+        List<Document> keywordDocList = this.search(keyword);  //List of documents with the keyword sorted by number of occurrences
+        List<Document> finalList = new ArrayList<>();
 
+        for (Document doc : metadataDocList){  //if a doc has the keyword and metadata add to the finalList
+            if (keywordDocList.contains(doc)){
+                finalList.add(doc);
+            }
+        }
+
+        return finalList;
     }
 
     /**
@@ -280,7 +330,17 @@ public class DocumentStoreImpl implements DocumentStore {
      * @return a List of the matches. If there are no matches, return an empty list.
      */
     public List<Document> searchByPrefixAndMetadata(String keywordPrefix,Map<String,String> keysValues){
+        List<Document> metadataDocList = this.searchByMetadata(keysValues);  //List of documents with matching metadata
+        List<Document> keywordDocList = this.searchByPrefix(keywordPrefix);  //List of documents with the Prefix sorted by number of occurrences
+        List<Document> finalList = new ArrayList<>();
 
+        for (Document doc : metadataDocList){  //if a doc has the Prefix and metadata add to the finalList
+            if (keywordDocList.contains(doc)){
+                finalList.add(doc);
+            }
+        }
+
+        return finalList;
     }
 
     /**
@@ -289,7 +349,15 @@ public class DocumentStoreImpl implements DocumentStore {
      * @return a Set of URIs of the documents that were deleted.
      */
     public Set<URI> deleteAllWithMetadata(Map<String,String> keysValues){
+        List<Document> matchingMetadata = this.searchByMetadata(keysValues); //get documents with matching metadata
+        Set<URI> deletedDocURI = new HashSet<>();
 
+        for (Document doc : matchingMetadata) {  //delete the document and add its URI to the set
+            this.documentTrie.delete(doc.getKey().toString(), doc);
+            deletedDocURI.add(doc.getKey());
+        }
+
+        return deletedDocURI;
     }
 
     /**
@@ -299,7 +367,17 @@ public class DocumentStoreImpl implements DocumentStore {
      * @return a Set of URIs of the documents that were deleted.
      */
     public Set<URI> deleteAllWithKeywordAndMetadata(String keyword,Map<String,String> keysValues){
+        List<Document>  matchingMetadata = this.searchByMetadata(keysValues); //get docs with matching metadata
+        Set<URI> deletedDocURI = new HashSet<>();
 
+        for (Document doc : matchingMetadata){  //if the doc has matching metadata and has the prefix, delete it
+            if (doc.getKey().toString().equals(keyword)){
+                this.documentTrie.delete(doc.getKey().toString(), doc);
+                deletedDocURI.add(doc.getKey());
+            }
+        }
+
+        return deletedDocURI;
     }
 
     /**
@@ -309,6 +387,16 @@ public class DocumentStoreImpl implements DocumentStore {
      * @return a Set of URIs of the documents that were deleted.
      */
     public Set<URI> deleteAllWithPrefixAndMetadata(String keywordPrefix,Map<String,String> keysValues){
+        List<Document>  matchingMetadata = this.searchByMetadata(keysValues); //get docs with matching metadata
+        Set<URI> deletedDocURI = new HashSet<>();
 
+        for (Document doc : matchingMetadata){  //if the doc has matching metadata and has the prefix, delete it
+            if (doc.getKey().toString().startsWith(keywordPrefix)){
+                this.documentTrie.delete(doc.getKey().toString(), doc);
+                deletedDocURI.add(doc.getKey());
+            }
+        }
+
+        return deletedDocURI;
     }
 }

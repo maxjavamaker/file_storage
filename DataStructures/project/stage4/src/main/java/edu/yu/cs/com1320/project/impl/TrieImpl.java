@@ -1,7 +1,6 @@
 package edu.yu.cs.com1320.project.impl;
 
 import edu.yu.cs.com1320.project.Trie;
-import edu.yu.cs.com1320.project.stage4.Document;
 
 import java.util.*;
 
@@ -10,7 +9,7 @@ import java.util.*;
  * @param <Value>
  */
 public class TrieImpl<Value> implements Trie<Value> {
-    private Node<Value> root = null;
+    private Node<Value> root = new Node<>();
     private final int linkSize = 62;
 
 
@@ -66,6 +65,11 @@ public class TrieImpl<Value> implements Trie<Value> {
      * @return a Set of matching Values. Empty set if no matches.
      */
     public Set<Value> get(String key) {
+        if (key.equals(" ")){  //is key is whitespace return a set containing every document in the tree
+            Set<Value> allValues = new HashSet<>();
+            getAll(this.root, allValues);
+            return allValues;
+        }
         return get(this.root, key, 0);
     }
 
@@ -82,6 +86,14 @@ public class TrieImpl<Value> implements Trie<Value> {
         return this.get(x.links[c], key, d + 1);
     }
 
+    private void getAll(Node<Value> x, Set<Value> values){
+        values.addAll(x.val); //add all the nodes values to the set
+
+        for (Node<Value> child : x.links){ //cycle through the tree
+            getAll(child, values);
+        }
+    }
+
     /**
      * get all matches which contain a String with the given prefix, sorted in descending order, where "descending" is defined by the comparator.
      * NOTE FOR COM1320 PROJECT: FOR PURPOSES OF A *KEYWORD* SEARCH, THE COMPARATOR SHOULD DEFINE ORDER AS HOW MANY TIMES THE KEYWORD APPEARS IN THE DOCUMENT.
@@ -93,15 +105,22 @@ public class TrieImpl<Value> implements Trie<Value> {
      */
 
     public List<Value> getAllWithPrefixSorted(String prefix, Comparator<Value> comparator){
-        List<Value> sortedWords = new ArrayList<>();
         Node<Value> subtree = this.getNode(this.root, prefix, 0); //get the node of the subtree to get prefixes from
-        getPrefixes(subtree, sortedWords);
+        List<Value> values = new ArrayList<>();
+
+        getPrefixes(subtree, values);  //add all the Values to the set from the subtree
+        Collections.sort(values, comparator);
+        return values;
     }
 
     private void getPrefixes(Node<Value> x, List<Value> words){
-        words.addAll(x.val); //add all the nodes values to the list
+        for (Value val : x.val){  //add nodes to the list if they aren't duplicates
+            if (!words.contains(val)){
+                words.add(val);
+            }
+        }
 
-        for (Node<Value> child : x.links){ //cycle through the tree and add all values
+        for (Node<Value> child : x.links){ //cycle through the tree
             getPrefixes(child, words);
         }
     }
@@ -116,6 +135,7 @@ public class TrieImpl<Value> implements Trie<Value> {
     public Set<Value> deleteAllWithPrefix(String prefix){
         Set<Value> deletedValues = new HashSet<>(); //set of all the deleted values
         Node<Value> subtree = this.getNode(this.root, prefix, 0); //get the node of the subtree to delete from
+
         deleteSubtree(subtree, deletedValues); //delete the subtree
         return deletedValues;
     }
@@ -152,7 +172,7 @@ public class TrieImpl<Value> implements Trie<Value> {
     public Set<Value> deleteAll(String key){
         Set<Value> temp = new HashSet<>(this.get(key));  //temp set to store deleted values
         this.get(key).clear();  //delete all the values
-        trimIfEmpty(this.root, key, 0); //delete the node because it doesn't contain any values
+        deleteIfEmpty(this.root, key, 0); //delete if it has no children
         return temp;
     }
 
@@ -165,7 +185,7 @@ public class TrieImpl<Value> implements Trie<Value> {
 
     public Value delete(String key, Value val){
         if (this.get(key).remove(val)) { //if the value exists return it
-            trimIfEmpty(this.root, key, 0); //if deleting value results in an empty node, delete it
+            deleteIfEmpty(this.root, key, 0); //if deleting value results in an empty node, delete it
             return val;
         }
         else {
@@ -173,13 +193,13 @@ public class TrieImpl<Value> implements Trie<Value> {
         }
     }
 
-    private Node<Value> trimIfEmpty(Node<Value> x, String key, int d){
+    private Node<Value> deleteIfEmpty(Node<Value> x, String key, int d){
         if (d == key.length()) {
             return checkToDelete(x); //if node has no value or has no non-null children delete it
         }
 
         int c = asciiValue(key.charAt(d));
-        x.links[c] = this.trimIfEmpty(x.links[c], key, d + 1);
+        x.links[c] = this.deleteIfEmpty(x.links[c], key, d + 1);
 
         return checkToDelete(x);
     }
