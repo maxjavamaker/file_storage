@@ -8,14 +8,20 @@ import java.util.*;
  * FOR STAGE 3
  * @param <Value>
  */
+
 public class TrieImpl<Value> implements Trie<Value> {
-    private Node<Value> root = new Node<>();
-    private final int linkSize = 62;
+    private Node<Value> root;
+    private int linkSize = 62;
 
 
     private class Node<Value>{
-        private Set<Value> val;
-        private Node<Value>[] links = new Node[62];
+        private Set<Value> val = new HashSet<>();
+        private Node<Value>[] links = new Node[linkSize];
+    }
+
+    public TrieImpl(){
+        root = new Node<>();
+        linkSize = 62;
     }
 
     /**
@@ -24,6 +30,10 @@ public class TrieImpl<Value> implements Trie<Value> {
      * @param val;
      */
     public void put(String key, Value val){
+        if (val == null){
+            return;
+        }
+
         put(this.root, key, val, 0);
     }
 
@@ -45,20 +55,6 @@ public class TrieImpl<Value> implements Trie<Value> {
     }
 
     /**
-     * Get all exact matches for the given key, sorted in descending order, where "descending" is defined by the comparator.
-     * NOTE FOR COM1320 PROJECT: FOR PURPOSES OF A *KEYWORD* SEARCH, THE COMPARATOR SHOULD DEFINE ORDER AS HOW MANY TIMES THE KEYWORD APPEARS IN THE DOCUMENT.
-     * Search is CASE SENSITIVE.
-     * @param key;
-     * @param comparator used to sort values
-     * @return a List of matching Values. Empty List if no matches.
-     */
-    public List<Value> getSorted(String key, Comparator<Value> comparator){
-        List<Value> valueList = new ArrayList<>(this.get(key));  //get a list of the values stored at the key
-        Collections.sort(valueList, comparator);
-        return valueList;
-    }
-
-    /**
      * get all exact matches for the given key.
      * Search is CASE SENSITIVE.
      * @param key;
@@ -75,7 +71,7 @@ public class TrieImpl<Value> implements Trie<Value> {
 
     private Set<Value> get(Node<Value> x, String key, int d) {
         if (x == null) {
-            return x.val;
+            return null;
         }
 
         if (d == key.length()){
@@ -90,8 +86,24 @@ public class TrieImpl<Value> implements Trie<Value> {
         values.addAll(x.val); //add all the nodes values to the set
 
         for (Node<Value> child : x.links){ //cycle through the tree
-            getAll(child, values);
+            if (child != null) {
+                getAll(child, values);
+            }
         }
+    }
+
+    /**
+     * Get all exact matches for the given key, sorted in descending order, where "descending" is defined by the comparator.
+     * NOTE FOR COM1320 PROJECT: FOR PURPOSES OF A *KEYWORD* SEARCH, THE COMPARATOR SHOULD DEFINE ORDER AS HOW MANY TIMES THE KEYWORD APPEARS IN THE DOCUMENT.
+     * Search is CASE SENSITIVE.
+     * @param key;
+     * @param comparator used to sort values
+     * @return a List of matching Values. Empty List if no matches.
+     */
+    public List<Value> getSorted(String key, Comparator<Value> comparator){
+        List<Value> valueList = new ArrayList<>(this.get(key));  //get a list of the values stored at the key
+        Collections.sort(valueList, comparator);
+        return valueList;
     }
 
     /**
@@ -114,6 +126,10 @@ public class TrieImpl<Value> implements Trie<Value> {
     }
 
     private void getPrefixes(Node<Value> x, List<Value> words){
+        if (x == null){
+            return;
+        }
+
         for (Value val : x.val){  //add nodes to the list if they aren't duplicates
             if (!words.contains(val)){
                 words.add(val);
@@ -136,15 +152,22 @@ public class TrieImpl<Value> implements Trie<Value> {
         Set<Value> deletedValues = new HashSet<>(); //set of all the deleted values
         Node<Value> subtree = this.getNode(this.root, prefix, 0); //get the node of the subtree to delete from
 
-        deleteSubtree(subtree, deletedValues); //delete the subtree
+        deleteSubtree(subtree, deletedValues); //delete the subtree, add deleted values to the set
         return deletedValues;
     }
 
     private Node<Value> deleteSubtree(Node<Value> x, Set<Value> deletedValues){
-        deletedValues.addAll(x.val); //add all the nodes values to the set
+        if (x == null){
+            return null;
+        }
+
+        deletedValues.addAll(x.val);  //add all the nodes values to the set
+        x.val.clear();  //remove all the values from the node
 
         for (Node<Value> child : x.links){ //cycle through the tree and remove all nodes
-            deleteSubtree(child, deletedValues);
+            if (child != null){
+                deleteSubtree(child, deletedValues);
+            }
         }
 
         return null;
@@ -170,10 +193,16 @@ public class TrieImpl<Value> implements Trie<Value> {
      */
 
     public Set<Value> deleteAll(String key){
-        Set<Value> temp = new HashSet<>(this.get(key));  //temp set to store deleted values
-        this.get(key).clear();  //delete all the values
-        deleteIfEmpty(this.root, key, 0); //delete if it has no children
-        return temp;
+        Set<Value> temp = new HashSet<>();
+        if (this.getNode(this.root, key, 0) == null){
+            return temp;
+        }
+        else {
+            temp.addAll(this.getNode(this.root, key, 0).val); //add all values to be deleted to the set
+            this.getNode(this.root, key, 0).val.clear();  //delete all values
+            deleteIfEmpty(this.root, key, 0); //delete if it has no children
+            return temp;
+        }
     }
 
     /**
@@ -185,7 +214,7 @@ public class TrieImpl<Value> implements Trie<Value> {
 
     public Value delete(String key, Value val){
         if (this.get(key).remove(val)) { //if the value exists return it
-            deleteIfEmpty(this.root, key, 0); //if deleting value results in an empty node, delete it
+            deleteIfEmpty(this.root, key, 0); //if there are no more values, delete the node
             return val;
         }
         else {
@@ -194,6 +223,10 @@ public class TrieImpl<Value> implements Trie<Value> {
     }
 
     private Node<Value> deleteIfEmpty(Node<Value> x, String key, int d){
+        if (x == null){
+            return null;
+        }
+
         if (d == key.length()) {
             return checkToDelete(x); //if node has no value or has no non-null children delete it
         }
@@ -201,7 +234,7 @@ public class TrieImpl<Value> implements Trie<Value> {
         int c = asciiValue(key.charAt(d));
         x.links[c] = this.deleteIfEmpty(x.links[c], key, d + 1);
 
-        return checkToDelete(x);
+        return x.links[c];
     }
 
     private Node<Value> checkToDelete(Node<Value> x){

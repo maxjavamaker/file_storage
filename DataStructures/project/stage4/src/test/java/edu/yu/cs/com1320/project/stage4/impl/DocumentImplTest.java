@@ -144,5 +144,28 @@ public class DocumentImplTest {
         Document document = new DocumentImpl(uri, bytes);
         assertNull(document.getDocumentTxt());
     }
+
+    @Test
+    public void wordCountBinaryDoc(){
+        byte[] bytes = text.getBytes();
+        Document document = new DocumentImpl(uri, bytes);
+        assertEquals(0, document.wordCount(text));
+    }
+
+    @Test
+    public void wordCountTextDoc(){
+        String text = "hey how're do you do, how are you?> do now?";
+        Document document = new DocumentImpl(uri, text);
+        assertEquals(7, document.getWords().size());
+        System.out.println(document.getWords());
+
+    }
+
+    @Test
+    public void wordCountTextDocAddWords(){
+        String text = "hey how do you do, how are you do now?";
+        Document document = new DocumentImpl(uri, text);
+        assertEquals(3, document.wordCount("do"));
+    }
 }
 

@@ -122,8 +122,17 @@ public class DocumentImpl implements Document {
     }
 
     private void addWordsToMap(String txt){
-        String[] text = txt.split("[^a-zA-Z0-9]+");  //remove any characters that are not words or numbers
-        for (String word : text){
+        String[] txtArray = txt.split("");
+        StringBuilder builder = new StringBuilder();
+
+        for (int i = 0; i < txtArray.length; i++){
+            if (!txtArray[i].matches("[^a-zA-Z0-9\\s]")){  //remove any characters that are not words or numbers
+                builder.append(txtArray[i]);
+            }
+        }
+        String textString = builder.toString();
+        String[] textArray = textString.split(" "); //split at whitespace
+        for (String word : textArray){
             this.words.compute(word, (key, oldValue) -> (oldValue == null) ? 1 : oldValue + 1);  //if the value is null set to one, otherwise increase by 1
         }
     }

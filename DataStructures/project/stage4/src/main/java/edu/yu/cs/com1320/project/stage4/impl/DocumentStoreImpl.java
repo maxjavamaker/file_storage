@@ -106,6 +106,9 @@ public class DocumentStoreImpl implements DocumentStore {
      * @return true if the document is deleted, false if no document exists with that URI
      */
     public boolean delete(URI url){
+        if (this.documents.get(url) == null){  //check if the document is in the hashtable, if not return false
+            return false;
+        }
 
         undoDeleteLogic(url);
         removeDocumentWordsFromTrie(this.documents.get(url));  //remove every word in the document from the trie
