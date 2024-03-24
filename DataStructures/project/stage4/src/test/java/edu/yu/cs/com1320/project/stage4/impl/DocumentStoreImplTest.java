@@ -10,10 +10,24 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class DocumentStoreImplTest {
+
+    String apple1;
+    String apple2;
+    String apples;
+    String Apple;
+
+    byte[] byteapple;
+    byte[] byteapples;
+    byte[] byteApple;
+
+    InputStream applestream;
+    InputStream applesstream;
+    InputStream Applestream;
 
     String text1;
     String text2;
@@ -33,6 +47,20 @@ class DocumentStoreImplTest {
     @BeforeEach
     public void setup() {
         try {
+            apple1 = "apple here and apple and apples there, keep the doctor away";
+            apple2 = "apple here and apple and apples there, keep the doctor away";
+            apples = "apple here and an applesty theres, keep the doctors away?";
+            Apple = "Apple Here And";
+
+            byteapple = apple1.getBytes();
+            byteapples = apples.getBytes();
+            byteApple = Apple.getBytes();
+
+            applestream = new ByteArrayInputStream(byteapple);
+            applesstream = new ByteArrayInputStream(byteapples);
+            Applestream = new ByteArrayInputStream(byteApple);
+
+
             text1 = "text1";
             text2 = "text2";
             key1 = "key1";
@@ -387,6 +415,131 @@ class DocumentStoreImplTest {
         catch(IOException e){
 
         }
+    }
+
+    @Test
+    public void search(){
+        try {
+            documentStore.put(applestream, uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(applesstream, uri2, DocumentStore.DocumentFormat.TXT);
+
+            List<Document> docList = this.documentStore.search("apple");
+
+            Document appleDoc = new DocumentImpl(uri1,"apple here and apple and apples there, keep the doctor away");
+            Document applesDoc = new DocumentImpl(uri2, "apple here and an applesty theres, keep the doctors away?");
+
+            assertEquals(appleDoc, docList.get(0));
+            assertEquals(applesDoc, docList.get(1));
+        }
+        catch(IOException e){
+
+        }
+    }
+
+    @Test
+    public void searchEmptyList(){
+        try {
+            documentStore.put(applestream, uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(applesstream, uri2, DocumentStore.DocumentFormat.TXT);
+
+            List<Document> docList = this.documentStore.search("dumble");
+
+            assert(docList.isEmpty());
+        }
+        catch(IOException e){
+
+        }
+    }
+
+    @Test
+    public void searchIsCaseSensitive(){
+
+        try {
+            documentStore.put(applestream, uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(Applestream, uri2, DocumentStore.DocumentFormat.TXT);
+
+            List<Document> docList = this.documentStore.search("Apple");
+
+            Document appleDoc = new DocumentImpl(uri1,"apple here and apple and apples there, keep the doctor away");
+            Document AppleDoc = new DocumentImpl(uri2, "Apple Here And");
+
+            assert(!docList.contains(appleDoc));
+            assert(docList.contains(AppleDoc));
+        }
+        catch(IOException e){
+
+        }
+    }
+
+    @Test
+    public void searchByPrefix(){
+        try {
+            documentStore.put(applestream, uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(applesstream, uri2, DocumentStore.DocumentFormat.TXT);
+
+            List<Document> docList = this.documentStore.searchByPrefix("apples");
+            List<Document> docList2 = this.documentStore.searchByPrefix("apple");
+            List<Document> docList3 = this.documentStore.searchByPrefix("aPple");
+
+            Document appleDoc = new DocumentImpl(uri1,"apple here and apple and apples there, keep the doctor away");
+            Document applesDoc = new DocumentImpl(uri2, "apple here and an applesty theres, keep the doctors away?");
+
+            assert(docList.contains(appleDoc));
+            assert(docList.contains(applesDoc));
+
+            assertEquals(appleDoc, docList.get(0));
+            assertEquals(applesDoc, docList.get(1));
+
+            assert(docList3.isEmpty());
+
+        }
+        catch(IOException e){
+
+        }
+    }
+
+    @Test
+    public void deleteAll(){
+        try {
+            documentStore.put(applestream, uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(applesstream, uri2, DocumentStore.DocumentFormat.TXT);
+
+
+            Set<URI> docList = this.documentStore.deleteAll("doctor");
+            Set<URI> docList2 = this.documentStore.deleteAll("habanero");
+
+
+            assert(docList.contains(uri1));
+            assert(!docList.contains(uri2));
+            assert(docList2.size() == 0);
+
+            assertEquals(0, this.documentStore.search("apples").size());
+            assertEquals(1, this.documentStore.search("doctors").size());
+            assertEquals(1, this.documentStore.search("applesty").size());
+
+
+
+
+
+
+            Document appleDoc = new DocumentImpl(uri1,"apple here and apple and apples there, keep the doctor away");
+            Document applesDoc = new DocumentImpl(uri2, "apple here and an applesty theres, keep the doctors away?");
+
+
+        }
+        catch(IOException e){
+
+        }
+    }
+
+    @Test
+    public void undoDeleteAll(){
+
+    }
+
+    @Test
+    public void deleteAllWithPrefix(){
+
     }
 }
 

@@ -66,7 +66,9 @@ public class TrieImpl<Value> implements Trie<Value> {
             getAll(this.root, allValues);
             return allValues;
         }
-        return get(this.root, key, 0);
+
+        Set<Value> emptySet = new HashSet<>();
+        return this.get(this.root, key, 0) == null ? emptySet : this.get(this.root, key, 0);  //if the node is null return empty hashset
     }
 
     private Set<Value> get(Node<Value> x, String key, int d) {
@@ -213,12 +215,16 @@ public class TrieImpl<Value> implements Trie<Value> {
      */
 
     public Value delete(String key, Value val){
-        if (this.get(key).remove(val)) { //if the value exists return it
-            deleteIfEmpty(this.root, key, 0); //if there are no more values, delete the node
-            return val;
-        }
-        else {
+        Node<Value> x = this.getNode(this.root, key, 0);
+
+        if (x == null) {
             return null;
+        }
+
+        else {
+            x.val.remove(val);
+            deleteIfEmpty(this.root, key, 0);
+            return val;
         }
     }
 
@@ -226,7 +232,6 @@ public class TrieImpl<Value> implements Trie<Value> {
         if (x == null){
             return null;
         }
-
         if (d == key.length()) {
             return checkToDelete(x); //if node has no value or has no non-null children delete it
         }
@@ -234,7 +239,7 @@ public class TrieImpl<Value> implements Trie<Value> {
         int c = asciiValue(key.charAt(d));
         x.links[c] = this.deleteIfEmpty(x.links[c], key, d + 1);
 
-        return x.links[c];
+        return checkToDelete(x);
     }
 
     private Node<Value> checkToDelete(Node<Value> x){

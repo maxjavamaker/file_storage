@@ -8,6 +8,9 @@ import edu.yu.cs.com1320.project.impl.TrieImpl;
 import edu.yu.cs.com1320.project.stage4.Document;
 import edu.yu.cs.com1320.project.stage4.DocumentStore;
 import edu.yu.cs.com1320.project.undo.Command;
+import edu.yu.cs.com1320.project.undo.CommandSet;
+import edu.yu.cs.com1320.project.undo.GenericCommand;
+import edu.yu.cs.com1320.project.undo.Undoable;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -19,7 +22,7 @@ import java.util.function.Consumer;
 public class DocumentStoreImpl implements DocumentStore {
     private final HashTable<URI, Document> documents = new HashTableImpl<>();
     private final TrieImpl<Document> documentTrie = new TrieImpl<>();
-    private final Stack<Command> stack = new StackImpl<>();
+    private final Stack<Undoable> stack = new StackImpl<>();
 
     /**
      * set the given key-value metadata pair for the document at the given uri
@@ -34,7 +37,7 @@ public class DocumentStoreImpl implements DocumentStore {
             throw new IllegalArgumentException();
         }
 
-        undoSetMetaDataLogic(uri, key, value);
+        undoSetMetaDataLogic(this.documents.get(uri), key);
 
         return documents.get(uri).setMetadataValue(key, value);
     }
@@ -144,13 +147,19 @@ public class DocumentStoreImpl implements DocumentStore {
      * undo the last put or delete command
      * @throws IllegalStateException if there are no actions to be undone, i.e. the command stack is empty
      */
-    public void undo() throws IllegalStateException{
-        if (stack.size() == 0){
+    public void undo() throws IllegalStateException {
+        if (stack.size() == 0) {
             throw new IllegalStateException();
         }
 
-        stack.pop().undo();
+        if (stack.peek() instanceof CommandSet<?>){
+            CommandSet<?> temp = (CommandSet<?>) stack.pop();
+            temp.undoAll();
+        }
 
+        else {
+            stack.pop().undo();
+        }
     }
 
     /**
@@ -163,13 +172,38 @@ public class DocumentStoreImpl implements DocumentStore {
             throw new IllegalStateException("The stack has no commands");
         }
 
-        Stack<Command> helper = new StackImpl<>();
+        Stack<Undoable> helper = new StackImpl<>();
+        CommandSet<?> genericSet;
+        CommandSet<URI> uriSet;
+        GenericCommand<?> genericCommand;
+        GenericCommand<URI> genericURI;
 
-        while(!stack.peek().getUri().equals(url)){
-            helper.push(stack.pop());
-            if (stack.size() == 0){
-                throw new IllegalStateException("The stack has no commands with the specified url");
+        while(stack.size() != 0){
+            if (stack.peek() instanceof CommandSet<?>){
+                genericSet = (CommandSet<?>) stack.peek();
+                uriSet = (CommandSet<URI>) genericSet;
+                if (uriSet.containsTarget(url)){
+                    uriSet.undoAll();
+                    stack.pop();
+                }
+
             }
+
+            else{
+                genericCommand = (GenericCommand<?>) stack.peek();
+                genericURI = (GenericCommand<URI>) genericCommand;
+
+                if (genericURI.getTarget().equals(url)){
+                    genericURI.undo();
+                    stack.pop();
+                }
+            }
+
+            helper.push(stack.pop());
+        }
+
+        while (helper.size() != 0){
+            stack.push(helper.pop());
         }
 
         stack.pop().undo();
@@ -179,31 +213,30 @@ public class DocumentStoreImpl implements DocumentStore {
         }
     }
 
-    private void undoSetMetaDataLogic(URI uri, String key, String value){
-        if (getMetadata(uri, key) != null) {
-            Document previousDocument = documents.get(uri);
+    private void undoSetMetaDataLogic(Document document, String key){
+        if (this.getMetadata(document.getKey(), key) != null) {  //check if the metadata previously existed
+            Document previousDocument = documents.get(document.getKey());
             String previousValue = previousDocument.getMetadataValue(key);
+
             Consumer<URI> consumer = revertMetadata -> previousDocument.setMetadataValue(key, previousValue);
-            stack.push(new Command(uri, consumer));
+            stack.push(new GenericCommand<>(document.getKey(), consumer));
         }
 
         else{
-            Document previousDocument = documents.get(uri);
-            Consumer<URI> consumer = revertMetadata -> previousDocument.setMetadataValue(key, null);
-            stack.push(new Command(uri, consumer));
+            Consumer<URI> consumer = revertMetadata -> document.setMetadataValue(key, null);
+            stack.push(new GenericCommand<>(document.getKey(), consumer));
         }
     }
 
     private void undoSetDocumentLogic(URI uri){
         Consumer<URI> consumer = restoreDocument -> documents.put(uri, null);
-        Command command = new Command(uri, consumer);
-        stack.push(command);
+        stack.push(new GenericCommand<>(uri, consumer));
     }
 
     private void undoDeleteLogic(URI url){  //same logic for changing a document
         Document previousDocument = documents.get(url);
         Consumer<URI> consumer = restoreDocument -> documents.put(url, previousDocument);
-        stack.push(new Command(url, consumer));
+        stack.push(new GenericCommand<>(url, consumer));
     }
 
     /**
@@ -214,6 +247,10 @@ public class DocumentStoreImpl implements DocumentStore {
      * @return a List of the matches. If there are no matches, return an empty list.
      */
     public List<Document> search(String keyword) {
+        if (keyword == null){
+            throw new IllegalArgumentException();
+        }
+
         return documentTrie.getSorted(keyword, createComparator(keyword));  //create comparator and pass it to tries' get sorted method
     }
 
@@ -254,13 +291,8 @@ public class DocumentStoreImpl implements DocumentStore {
      * @return a Set of URIs of the documents that were deleted.
      */
     public Set<URI> deleteAll(String keyword){
-        Set<Document> docSet = (this.documentTrie.deleteAll(keyword)); //delete all documents at the key and add it to a set
-        Set<URI> uriSet = new HashSet<>();  //set of uris of deleted documents
-        for (Document document : docSet){  //add uris to the set
-            uriSet.add(document.getKey());
-        }
-
-        return uriSet;
+        List<Document> docs = this.search(keyword);  //get list of documents with the keyword
+        return this.deleteAndUndoLogic(docs);  //remove all traces of the document, create undo logic
     }
 
     /**
@@ -270,13 +302,8 @@ public class DocumentStoreImpl implements DocumentStore {
      * @return a Set of URIs of the documents that were deleted.
      */
     public Set<URI> deleteAllWithPrefix(String keywordPrefix){
-        Set<Document> docSet = (this.documentTrie.deleteAllWithPrefix(keywordPrefix)); //delete all documents whose key has the prefix and add it to a set
-        Set<URI> uriSet = new HashSet<>();  //set of uris of deleted documents
-        for (Document document : docSet){  //add uris to the set
-            uriSet.add(document.getKey());
-        }
-
-        return uriSet;
+        List<Document> docs = this.searchByPrefix(keywordPrefix);  //get list of documents with the keyword
+        return this.deleteAndUndoLogic(docs);  //remove all traces of the document, create undo logic
     }
 
     /**
@@ -352,15 +379,8 @@ public class DocumentStoreImpl implements DocumentStore {
      * @return a Set of URIs of the documents that were deleted.
      */
     public Set<URI> deleteAllWithMetadata(Map<String,String> keysValues){
-        List<Document> matchingMetadata = this.searchByMetadata(keysValues); //get documents with matching metadata
-        Set<URI> deletedDocURI = new HashSet<>();
-
-        for (Document doc : matchingMetadata) {  //delete the document and add its URI to the set
-            this.documentTrie.delete(doc.getKey().toString(), doc);
-            deletedDocURI.add(doc.getKey());
-        }
-
-        return deletedDocURI;
+        List<Document> docs = this.searchByMetadata(keysValues); //get documents with matching metadata
+        return this.deleteAndUndoLogic(docs);  //remove all traces of the documents, create undo logic
     }
 
     /**
@@ -370,17 +390,8 @@ public class DocumentStoreImpl implements DocumentStore {
      * @return a Set of URIs of the documents that were deleted.
      */
     public Set<URI> deleteAllWithKeywordAndMetadata(String keyword,Map<String,String> keysValues){
-        List<Document>  matchingMetadata = this.searchByMetadata(keysValues); //get docs with matching metadata
-        Set<URI> deletedDocURI = new HashSet<>();
-
-        for (Document doc : matchingMetadata){  //if the doc has matching metadata and has the prefix, delete it
-            if (doc.getKey().toString().equals(keyword)){
-                this.documentTrie.delete(doc.getKey().toString(), doc);
-                deletedDocURI.add(doc.getKey());
-            }
-        }
-
-        return deletedDocURI;
+        List<Document>  docs = this.searchByKeywordAndMetadata(keyword, keysValues); //get docs with matching metadata and keyword
+        return this.deleteAndUndoLogic(docs);  //remove all traces of the document, create undo logic
     }
 
     /**
@@ -390,16 +401,49 @@ public class DocumentStoreImpl implements DocumentStore {
      * @return a Set of URIs of the documents that were deleted.
      */
     public Set<URI> deleteAllWithPrefixAndMetadata(String keywordPrefix,Map<String,String> keysValues){
-        List<Document>  matchingMetadata = this.searchByMetadata(keysValues); //get docs with matching metadata
-        Set<URI> deletedDocURI = new HashSet<>();
+        List<Document> docs = this.searchByPrefixAndMetadata(keywordPrefix, keysValues); //get docs with matching metadata
+        return this.deleteAndUndoLogic(docs);  //remove all traces of the document, create undo logic
+    }
 
-        for (Document doc : matchingMetadata){  //if the doc has matching metadata and has the prefix, delete it
-            if (doc.getKey().toString().startsWith(keywordPrefix)){
-                this.documentTrie.delete(doc.getKey().toString(), doc);
-                deletedDocURI.add(doc.getKey());
+    private Set<URI> deleteAndUndoLogic(List<Document> docs){
+        boolean createCommandSet = docs.size() > 1;
+        Set<URI> uriSet = new HashSet<>();
+
+        if (docs.isEmpty()){  //if there are no documents to delete return an empty set
+            return uriSet;
+        }
+
+        GenericCommand<URI> genericCommand;
+        CommandSet<URI> commandSet = new CommandSet<>();
+
+
+        for (Document document : docs){  //cycle through every document
+
+            for (String word : document.getWords()) {  //cycle through every word in the document
+                this.documentTrie.delete(word, document);  //delete the document at the word
+            }
+
+            Consumer<URI> consumer = document1 -> {  //undo logic
+                for (String word : document.getWords()) {
+                    this.documentTrie.put(word, document);
+                }
+            };
+
+            uriSet.add(document.getKey());  //add uri to the set
+
+            genericCommand = new GenericCommand<>(document.getKey(), consumer);
+
+            if (createCommandSet) { //add generic command to the command set
+                commandSet.add(genericCommand);
+            }
+
+            else{  //push the generic command set to the stack
+                this.stack.push(genericCommand);
+                return uriSet;
             }
         }
 
-        return deletedDocURI;
+        this.stack.push(commandSet);
+        return uriSet;
     }
 }
