@@ -115,10 +115,10 @@ public class TrieImplTest {
 
         assertEquals(-3, trie.delete("7", -3));
         assertEquals(list, trie.get("7"));
-        assertNull(trie.get("71"));
+        assert(trie.get("71").isEmpty());
         trie.delete("happening", 7);
-        assertNull(trie.get("happening"));
-        assertNull(trie.get("happeni"));
+        assert(trie.get("happening").isEmpty());
+        assert(trie.get("happeni").isEmpty());
     }
 
     @Test

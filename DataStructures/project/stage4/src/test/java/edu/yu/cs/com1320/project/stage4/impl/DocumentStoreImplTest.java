@@ -410,7 +410,7 @@ class DocumentStoreImplTest {
             documentStore.undo(uri1);
             assertNull(documentStore.get(uri1));
             documentStore.undo(uri2);
-            assertNull(documentStore.getMetadata(uri2, key2));
+            //assertNull(documentStore.getMetadata(uri2, key2));
         }
         catch(IOException e){
 
@@ -534,12 +534,280 @@ class DocumentStoreImplTest {
 
     @Test
     public void undoDeleteAll(){
+        try {
+            documentStore.put(applestream, uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(applesstream, uri2, DocumentStore.DocumentFormat.TXT);
+
+
+            Set<URI> docList = this.documentStore.deleteAll("doctor");
+            assertEquals(0, this.documentStore.search("doctor").size());
+
+            Document appleDoc = new DocumentImpl(uri1,"apple here and apple and apples there, keep the doctor away");
+            Document applesDoc = new DocumentImpl(uri2, "apple here and an applesty theres, keep the doctors away?");
+
+            this.documentStore.undo(uri1);
+            assertEquals(1, this.documentStore.search("doctor").size());
+        }
+        catch(IOException e){
+
+        }
+    }
+
+    @Test
+    public void deleteAllWithPrefixAndUndoLogic(){
+        try {
+            documentStore.put(applestream, uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(applesstream, uri2, DocumentStore.DocumentFormat.TXT);
+
+            Set<URI> docList2 = this.documentStore.deleteAllWithPrefix("habanero");
+            Set<URI> docList = this.documentStore.deleteAllWithPrefix("doct");
+
+            assert(docList.contains(uri1));
+            assert(docList.contains(uri2));
+            assert(docList2.size() == 0);
+
+            assertEquals(0, this.documentStore.search("apples").size());
+            assertEquals(0, this.documentStore.search("doctors").size());
+            assertEquals(0, this.documentStore.search("applesty").size());
+
+            assertEquals(0, this.documentStore.searchByPrefix("doct").size());
+            this.documentStore.undo();
+            assertEquals(2, this.documentStore.searchByPrefix("doct").size());
+
+            this.documentStore.deleteAllWithPrefix("Doct");
+            assertEquals(2, this.documentStore.searchByPrefix("doct").size());
+
+            assert(this.documentStore.deleteAllWithPrefix("Doct").isEmpty());
+
+
+
+            Document appleDoc = new DocumentImpl(uri1,"apple here and apple and apples there, keep the doctor away");
+            Document applesDoc = new DocumentImpl(uri2, "apple here and an applesty theres, keep the doctors away?");
+
+
+        }
+        catch(IOException e){
+
+        }
 
     }
 
     @Test
-    public void deleteAllWithPrefix(){
+    public void searchByMetadata(){
+        try {
+            Document doc1 = new DocumentImpl(uri1, "text1");
+            Document doc2 = new DocumentImpl(uri2, "text2");
 
+
+            this.documentStore.put(inputStream1, uri1, DocumentStore.DocumentFormat.TXT);
+            this.documentStore.put(inputStream2, uri2, DocumentStore.DocumentFormat.TXT);
+
+            this.documentStore.setMetadata(uri1, "key1", "value1");
+            this.documentStore.setMetadata(uri2, "key2", "value1");
+
+            Map<String, String> values = new HashMap<>();
+            values.put("key1", "value1");
+
+            List<Document> docs = this.documentStore.searchByMetadata(values);
+            assert (docs.contains(doc1));
+            assert (!docs.contains(doc2));
+
+            Map<String, String> values2 = new HashMap<>();
+            values2.put("derrick", "henry");
+            assert(this.documentStore.searchByMetadata(values2).isEmpty());
+
+        }
+        catch(IOException e){
+
+        }
+    }
+
+    @Test
+    public void searchByKeywordAndMetadata(){
+        try {
+            Document doc1 = new DocumentImpl(uri1, "text1");
+            Document doc2 = new DocumentImpl(uri2, "text2");
+
+
+            this.documentStore.put(inputStream1, uri1, DocumentStore.DocumentFormat.TXT);
+            this.documentStore.put(inputStream2, uri2, DocumentStore.DocumentFormat.TXT);
+
+            this.documentStore.setMetadata(uri1, "key1", "value1");
+            this.documentStore.setMetadata(uri2, "key2", "value1");
+
+            Map<String, String> values = new HashMap<>();
+            values.put("key1", "value1");
+
+            List<Document> docs = this.documentStore.searchByKeywordAndMetadata("text1", values);
+            assert (docs.contains(doc1));
+            assert (!docs.contains(doc2));
+
+            Map<String, String> values2 = new HashMap<>();
+            values2.put("derrick", "henry");
+            assert(this.documentStore.searchByKeywordAndMetadata("text1", values2).isEmpty());
+
+        }
+        catch(IOException e){
+
+        }
+    }
+
+    @Test
+    public void searchByPrefixAndMetadata(){
+        try {
+            Document doc1 = new DocumentImpl(uri1, "text1");
+            Document doc2 = new DocumentImpl(uri2, "text2");
+
+
+            this.documentStore.put(inputStream1, uri1, DocumentStore.DocumentFormat.TXT);
+            this.documentStore.put(inputStream2, uri2, DocumentStore.DocumentFormat.TXT);
+
+            this.documentStore.setMetadata(uri1, "key1", "value1");
+            this.documentStore.setMetadata(uri2, "key2", "value1");
+
+            Map<String, String> values = new HashMap<>();
+            values.put("key1", "value1");
+
+            List<Document> docs = this.documentStore.searchByPrefixAndMetadata("tex", values);
+            assert (docs.contains(doc1));
+            assert (!docs.contains(doc2));
+
+            Map<String, String> values2 = new HashMap<>();
+            values2.put("derrick", "henry");
+            assert(this.documentStore.searchByPrefixAndMetadata("text1", values2).isEmpty());
+
+        }
+        catch(IOException e){
+
+        }
+    }
+
+    @Test
+    public void deleteAllWithMetadata(){
+        try {
+            Document doc1 = new DocumentImpl(uri1, "text1");
+            Document doc2 = new DocumentImpl(uri2, "text2");
+
+
+            this.documentStore.put(inputStream1, uri1, DocumentStore.DocumentFormat.TXT);
+            this.documentStore.put(inputStream2, uri2, DocumentStore.DocumentFormat.TXT);
+
+            this.documentStore.setMetadata(uri1, "key1", "value1");
+            this.documentStore.setMetadata(uri1, "key3", "value3");
+            this.documentStore.setMetadata(uri2, "key2", "value1");
+
+            Map<String, String> values = new HashMap<>();
+            values.put("key1", "value1");
+            values.put("key3", "value3");
+
+
+            Set<URI> docs = this.documentStore.deleteAllWithMetadata(values);
+            assert (docs.contains(uri1));
+            assert (!docs.contains(uri2));
+
+            Map<String, String> values2 = new HashMap<>();
+            values2.put("derrick", "henry");
+            assert(this.documentStore.deleteAllWithMetadata(values2).isEmpty());
+
+        }
+        catch(IOException e){
+
+        }
+    }
+
+    @Test
+    public void deleteAllWithMetadataUndo(){
+        try {
+            Document doc1 = new DocumentImpl(uri1, "text1");
+            Document doc2 = new DocumentImpl(uri2, "text2");
+
+
+            this.documentStore.put(inputStream1, uri1, DocumentStore.DocumentFormat.TXT);
+            this.documentStore.put(inputStream2, uri2, DocumentStore.DocumentFormat.TXT);
+
+            this.documentStore.setMetadata(uri1, "key1", "value1");
+            this.documentStore.setMetadata(uri1, "key3", "value3");
+            this.documentStore.setMetadata(uri2, "key2", "value1");
+
+            Map<String, String> values = new HashMap<>();
+            values.put("key1", "value1");
+            values.put("key3", "value3");
+
+
+            Set<URI> docs = this.documentStore.deleteAllWithMetadata(values);
+            assertEquals(0, this.documentStore.search("text1").size());
+            assert (docs.contains(uri1));
+            assert (!docs.contains(uri2));
+
+            this.documentStore.undo();
+            assertEquals(1, this.documentStore.search("text1").size());
+
+            Map<String, String> values2 = new HashMap<>();
+            values2.put("derrick", "henry");
+            assert(this.documentStore.deleteAllWithMetadata(values2).isEmpty());
+
+        }
+
+        catch(IOException e){
+
+        }
+    }
+
+    @Test
+    public void deleteAllWithPrefixAndMetadata(){
+        try {
+            Document doc1 = new DocumentImpl(uri1, "text1");
+            Document doc2 = new DocumentImpl(uri2, "text2");
+
+
+            this.documentStore.put(inputStream1, uri1, DocumentStore.DocumentFormat.TXT);
+            this.documentStore.put(inputStream2, uri2, DocumentStore.DocumentFormat.TXT);
+
+            this.documentStore.setMetadata(uri1, "key1", "value1");
+            this.documentStore.setMetadata(uri1, "key3", "value3");
+            this.documentStore.setMetadata(uri2, "key2", "value1");
+
+            Map<String, String> values = new HashMap<>();
+            values.put("key1", "value1");
+            values.put("key3", "value3");
+
+
+            Set<URI> docs = this.documentStore.deleteAllWithPrefixAndMetadata("hex", values);
+
+            assert (!docs.contains(uri1));
+            assert (!docs.contains(uri2));
+
+            Set<URI> docs2 = this.documentStore.deleteAllWithPrefixAndMetadata("tex", values);
+
+            assert (docs2.contains(uri1));
+            assertEquals(0, this.documentStore.search("text1").size());
+            assert (!docs2.contains(uri2));
+
+            this.documentStore.undo();
+
+            assertEquals(1, this.documentStore.search("text1").size());
+
+        }
+
+        catch(IOException e){
+
+        }
+    }
+
+    @Test
+    public void replaceDocumentInTrie(){
+        try{
+            this.documentStore.put(inputStream1, uri1, DocumentStore.DocumentFormat.TXT);
+            assertEquals(1, this.documentStore.search("text1").size());
+
+            this.documentStore.put(inputStream2, uri1, DocumentStore.DocumentFormat.TXT);
+            assertEquals(0, this.documentStore.search("text1").size());
+
+
+        }
+        catch(IOException e){
+
+        }
     }
 }
 

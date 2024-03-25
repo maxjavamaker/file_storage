@@ -7,7 +7,6 @@ import edu.yu.cs.com1320.project.impl.StackImpl;
 import edu.yu.cs.com1320.project.impl.TrieImpl;
 import edu.yu.cs.com1320.project.stage4.Document;
 import edu.yu.cs.com1320.project.stage4.DocumentStore;
-import edu.yu.cs.com1320.project.undo.Command;
 import edu.yu.cs.com1320.project.undo.CommandSet;
 import edu.yu.cs.com1320.project.undo.GenericCommand;
 import edu.yu.cs.com1320.project.undo.Undoable;
@@ -126,6 +125,7 @@ public class DocumentStoreImpl implements DocumentStore {
 
     private int add(URI uri, Document document){
         if (documents.containsKey(uri)){
+            removeDocumentWordsFromTrie(this.documents.get(uri));
             undoDeleteLogic(uri);  //logic to undo changing document is the same as the logic for undoing delete
 
             return documents.put(uri, document).hashCode();
@@ -171,10 +171,13 @@ public class DocumentStoreImpl implements DocumentStore {
         if (stack.size() == 0){
             throw new IllegalStateException("The stack has no commands");
         }
+        boolean undidAction = false;
 
         Stack<Undoable> helper = new StackImpl<>();
+
         CommandSet<?> genericSet;
         CommandSet<URI> uriSet;
+
         GenericCommand<?> genericCommand;
         GenericCommand<URI> genericURI;
 
@@ -185,6 +188,11 @@ public class DocumentStoreImpl implements DocumentStore {
                 if (uriSet.containsTarget(url)){
                     uriSet.undoAll();
                     stack.pop();
+                    undidAction = true;
+                }
+
+                else{
+                    helper.push(stack.pop());
                 }
 
             }
@@ -196,18 +204,17 @@ public class DocumentStoreImpl implements DocumentStore {
                 if (genericURI.getTarget().equals(url)){
                     genericURI.undo();
                     stack.pop();
+                    undidAction = true;
+                }
+
+                else{
+                    helper.push(stack.pop());
                 }
             }
-
-            helper.push(stack.pop());
         }
-
-        while (helper.size() != 0){
-            stack.push(helper.pop());
+        if (!undidAction){
+            throw new IllegalStateException("uri not found on the stack");
         }
-
-        stack.pop().undo();
-
         while(helper.size() != 0){
             stack.push(helper.pop());
         }
@@ -215,10 +222,9 @@ public class DocumentStoreImpl implements DocumentStore {
 
     private void undoSetMetaDataLogic(Document document, String key){
         if (this.getMetadata(document.getKey(), key) != null) {  //check if the metadata previously existed
-            Document previousDocument = documents.get(document.getKey());
-            String previousValue = previousDocument.getMetadataValue(key);
+            String previousValue = document.getMetadataValue(key);
 
-            Consumer<URI> consumer = revertMetadata -> previousDocument.setMetadataValue(key, previousValue);
+            Consumer<URI> consumer = revertMetadata -> document.setMetadataValue(key, previousValue);
             stack.push(new GenericCommand<>(document.getKey(), consumer));
         }
 
@@ -313,10 +319,10 @@ public class DocumentStoreImpl implements DocumentStore {
     public List<Document> searchByMetadata(Map<String,String> keysValues){
         List<Document>  docList = new ArrayList<>();
 
-        for (Document doc : this.documents.values()){  //check each document in the hashtable to see if its metadata matches th keysValues map
+        for (Document doc : this.documents.values()){  //check each document in the hashtable to see if its metadata matches the keysValues map
             boolean addToList = true;
             for (String key : keysValues.keySet()){
-                if (!doc.getMetadata().get(key).equals(keysValues.get(key))){
+                if (doc.getMetadata().get(key) == null || !doc.getMetadata().get(key).equals(keysValues.get(key))){
                     addToList = false;
                     break;
                 }
@@ -434,7 +440,7 @@ public class DocumentStoreImpl implements DocumentStore {
             genericCommand = new GenericCommand<>(document.getKey(), consumer);
 
             if (createCommandSet) { //add generic command to the command set
-                commandSet.add(genericCommand);
+                commandSet.addCommand(genericCommand);
             }
 
             else{  //push the generic command set to the stack
