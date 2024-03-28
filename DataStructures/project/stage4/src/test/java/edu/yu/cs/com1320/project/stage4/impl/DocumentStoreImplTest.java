@@ -827,6 +827,7 @@ class DocumentStoreImplTest {
 
             assert(this.documentStore.search("text1").isEmpty());
             assert(this.documentStore.search("text2").isEmpty());
+            assert(this.documentStore.searchByPrefix("text").isEmpty());
 
             this.documentStore.undo(uri5);
 
@@ -855,6 +856,29 @@ class DocumentStoreImplTest {
 
             assert(this.documentStore.get(uri1) != null);
             assert(this.documentStore.get(uri2) != null);
+
+
+        }
+        catch(IOException e){
+
+        }
+    }
+
+    @Test
+    public void undoDeletePutWordsBack(){
+        try{
+            this.documentStore.put(inputStream1, uri1, DocumentStore.DocumentFormat.TXT);
+
+
+            this.documentStore.put(null, uri1, DocumentStore.DocumentFormat.TXT);
+
+            assert(this.documentStore.get(uri1) == null);
+            assert(this.documentStore.search("text1").isEmpty());
+
+            this.documentStore.undo();
+
+            assert(!this.documentStore.search("text1").isEmpty());
+
 
 
         }

@@ -26,7 +26,7 @@ public class DocumentImpl implements Document {
         this.uri = uri;
         this.text = txt;
         this.isBinary = false;
-        addWordsToMap(txt); //add every word to a hashmap
+        this.addWordsToMap(txt); //add every word to a hashmap
     }
 
     public DocumentImpl(URI uri, byte[] binaryData) {

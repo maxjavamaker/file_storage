@@ -112,7 +112,7 @@ public class DocumentStoreImpl implements DocumentStore {
             return false;
         }
 
-        undoDeleteLogic(url);
+        this.undoDeleteLogic(url);
         this.removeDocumentWordsFromTrie(this.documents.get(url));  //remove every word in the document from the trie
         return documents.put(url, null) != null;
     }
@@ -256,7 +256,10 @@ public class DocumentStoreImpl implements DocumentStore {
 
     private void undoDeleteLogic(URI url){  //same logic for changing a document
         Document previousDocument = documents.get(url);
-        Consumer<URI> consumer = restoreDocument -> documents.put(url, previousDocument);
+        Consumer<URI> consumer = restoreDocument -> {
+            documents.put(url, previousDocument);
+            this.addDocumentWordsToTrie(this.documents.get(url));
+        };
         stack.push(new GenericCommand<>(url, consumer));
     }
 
