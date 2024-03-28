@@ -73,7 +73,7 @@ public class DocumentStoreImpl implements DocumentStore {
         if (input == null){
             if(documents.containsKey(uri)) {
                 int hashCode = documents.get(uri).hashCode();
-                delete(uri);
+                this.delete(uri);
                 return hashCode;
             }
 
@@ -113,7 +113,7 @@ public class DocumentStoreImpl implements DocumentStore {
         }
 
         undoDeleteLogic(url);
-        removeDocumentWordsFromTrie(this.documents.get(url));  //remove every word in the document from the trie
+        this.removeDocumentWordsFromTrie(this.documents.get(url));  //remove every word in the document from the trie
         return documents.put(url, null) != null;
     }
 
@@ -125,15 +125,14 @@ public class DocumentStoreImpl implements DocumentStore {
 
     private int add(URI uri, Document document){
         if (documents.containsKey(uri)){
-            removeDocumentWordsFromTrie(this.documents.get(uri));
-            undoDeleteLogic(uri);  //logic to undo changing document is the same as the logic for undoing delete
+            this.removeDocumentWordsFromTrie(this.documents.get(uri));
+            this.undoDeleteLogic(uri);  //logic to undo changing document is the same as the logic for undoing delete
 
             return documents.put(uri, document).hashCode();
         }
 
-        undoSetDocumentLogic(uri);
-
         documents.put(uri, document);
+        this.undoSetDocumentLogic(uri);
         return 0;
     }
 
@@ -168,56 +167,68 @@ public class DocumentStoreImpl implements DocumentStore {
      * @throws IllegalStateException if there are no actions on the command stack for the given URI
      */
     public void undo(URI url) throws IllegalStateException{
-        if (stack.size() == 0){
-            throw new IllegalStateException("The stack has no commands");
-        }
         boolean undidAction = false;
 
         Stack<Undoable> helper = new StackImpl<>();
 
-        CommandSet<?> genericSet;
-        CommandSet<URI> uriSet;
-
-        GenericCommand<?> genericCommand;
-        GenericCommand<URI> genericURI;
-
-        while(stack.size() != 0){
+        while(stack.size() != 0 && !undidAction){
             if (stack.peek() instanceof CommandSet<?>){
-                genericSet = (CommandSet<?>) stack.peek();
-                uriSet = (CommandSet<URI>) genericSet;
-                if (uriSet.containsTarget(url)){
-                    uriSet.undoAll();
-                    stack.pop();
+                if (this.undoURLCommandSet(stack.peek(), url)){
                     undidAction = true;
-                }
-
-                else{
+                } else {
                     helper.push(stack.pop());
                 }
-
-            }
-
-            else{
-                genericCommand = (GenericCommand<?>) stack.peek();
-                genericURI = (GenericCommand<URI>) genericCommand;
-
-                if (genericURI.getTarget().equals(url)){
-                    genericURI.undo();
-                    stack.pop();
+            } else{
+                if (this.undoURLGenericCommand(stack.peek(), url)){
                     undidAction = true;
-                }
-
-                else{
+                } else{
                     helper.push(stack.pop());
                 }
             }
         }
+
         if (!undidAction){
             throw new IllegalStateException("uri not found on the stack");
         }
-        while(helper.size() != 0){
+
+        while(helper.size() != 0) {
             stack.push(helper.pop());
         }
+    }
+
+    private boolean undoURLCommandSet(Undoable undo, URI url){
+        boolean undidAction = false;
+        CommandSet<?> genericSet;
+        CommandSet<URI> uriSet;
+
+        genericSet = (CommandSet<?>) undo;
+        uriSet = (CommandSet<URI>) genericSet;
+
+        if (uriSet.undo(url)){  //if it contains the target undo just the genericCommand on the target
+            undidAction = true;
+            if (uriSet.undo()){  //if all commands were undone remove command set from the stack
+                stack.pop();
+            }
+        }
+
+        return undidAction;
+    }
+
+    private boolean undoURLGenericCommand(Undoable undo, URI url){
+        boolean undidAction = false;
+        GenericCommand<?> genericCommand;
+        GenericCommand<URI> genericURI;
+
+        genericCommand = (GenericCommand<?>) undo;
+        genericURI = (GenericCommand<URI>) genericCommand;
+
+        if (genericURI.getTarget().equals(url)){
+            genericURI.undo();
+            undidAction = true;
+            stack.pop();
+        }
+
+        return undidAction;
     }
 
     private void undoSetMetaDataLogic(Document document, String key){
@@ -235,7 +246,11 @@ public class DocumentStoreImpl implements DocumentStore {
     }
 
     private void undoSetDocumentLogic(URI uri){
-        Consumer<URI> consumer = restoreDocument -> documents.put(uri, null);
+        Consumer<URI> consumer = restoreDocument -> {
+            this.removeDocumentWordsFromTrie(this.documents.get(uri));
+            documents.put(uri, null);
+        };
+
         stack.push(new GenericCommand<>(uri, consumer));
     }
 
@@ -412,16 +427,15 @@ public class DocumentStoreImpl implements DocumentStore {
     }
 
     private Set<URI> deleteAndUndoLogic(List<Document> docs){
-        boolean createCommandSet = docs.size() > 1;
+        boolean createCommandSet = (docs.size() > 1);
         Set<URI> uriSet = new HashSet<>();
 
         if (docs.isEmpty()){  //if there are no documents to delete return an empty set
             return uriSet;
         }
 
-        GenericCommand<URI> genericCommand;
         CommandSet<URI> commandSet = new CommandSet<>();
-
+        GenericCommand<URI> genericCommand;
 
         for (Document document : docs){  //cycle through every document
 
@@ -429,14 +443,17 @@ public class DocumentStoreImpl implements DocumentStore {
                 this.documentTrie.delete(word, document);  //delete the document at the word
             }
 
-            Consumer<URI> consumer = document1 -> {  //undo logic
+            Consumer<URI> consumer = documentPut -> {  //undo logic
                 for (String word : document.getWords()) {
                     this.documentTrie.put(word, document);
                 }
+
+                this.documents.put(document.getKey(), document);
             };
 
             uriSet.add(document.getKey());  //add uri to the set
 
+            this.documents.put(document.getKey(), null);  //delete document from hashtable
             genericCommand = new GenericCommand<>(document.getKey(), consumer);
 
             if (createCommandSet) { //add generic command to the command set
@@ -445,8 +462,17 @@ public class DocumentStoreImpl implements DocumentStore {
 
             else{  //push the generic command set to the stack
                 this.stack.push(genericCommand);
+
+                for (URI uri : uriSet){
+                    this.documents.put(uri, null);
+                }
+
                 return uriSet;
             }
+        }
+
+        for (URI uri : uriSet){
+            this.documents.put(uri, null);
         }
 
         this.stack.push(commandSet);

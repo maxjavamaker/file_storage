@@ -1,7 +1,6 @@
 package edu.yu.cs.com1320.project.impl;
 
 import edu.yu.cs.com1320.project.Trie;
-
 import java.util.*;
 
 /**
@@ -34,7 +33,7 @@ public class TrieImpl<Value> implements Trie<Value> {
             return;
         }
 
-        put(this.root, key, val, 0);
+        this.put(this.root, key, val, 0);
     }
 
     private Node<Value> put(Node<Value> x, String key, Value val, int d){
@@ -63,7 +62,7 @@ public class TrieImpl<Value> implements Trie<Value> {
     public Set<Value> get(String key) {
         if (key.equals(" ")){  //is key is whitespace return a set containing every document in the tree
             Set<Value> allValues = new HashSet<>();
-            getAll(this.root, allValues);
+            this.getAll(this.root, allValues);
             return allValues;
         }
 
@@ -158,9 +157,9 @@ public class TrieImpl<Value> implements Trie<Value> {
         return deletedValues;
     }
 
-    private Node<Value> deleteSubtree(Node<Value> x, Set<Value> deletedValues){
+    private void deleteSubtree(Node<Value> x, Set<Value> deletedValues){
         if (x == null){
-            return null;
+            return;
         }
 
         deletedValues.addAll(x.val);  //add all the nodes values to the set
@@ -171,8 +170,6 @@ public class TrieImpl<Value> implements Trie<Value> {
                 deleteSubtree(child, deletedValues);
             }
         }
-
-        return null;
     }
 
     private Node<Value> getNode(Node<Value> x, String key, int d){
