@@ -186,13 +186,12 @@ public class DocumentStoreImpl implements DocumentStore {
                 }
             }
         }
+        while(helper.size() != 0) {
+            stack.push(helper.pop());
+        }
 
         if (!undidAction){
             throw new IllegalStateException("uri not found on the stack");
-        }
-
-        while(helper.size() != 0) {
-            stack.push(helper.pop());
         }
     }
 
@@ -206,7 +205,7 @@ public class DocumentStoreImpl implements DocumentStore {
 
         if (uriSet.undo(url)){  //if it contains the target undo just the genericCommand on the target
             undidAction = true;
-            if (uriSet.undo()){  //if all commands were undone remove command set from the stack
+            if (uriSet.size() == 0){  //if all commands were undone remove command set from the stack
                 stack.pop();
             }
         }
@@ -465,17 +464,8 @@ public class DocumentStoreImpl implements DocumentStore {
 
             else{  //push the generic command set to the stack
                 this.stack.push(genericCommand);
-
-                for (URI uri : uriSet){
-                    this.documents.put(uri, null);
-                }
-
                 return uriSet;
             }
-        }
-
-        for (URI uri : uriSet){
-            this.documents.put(uri, null);
         }
 
         this.stack.push(commandSet);

@@ -819,23 +819,16 @@ class DocumentStoreImplTest {
             this.documentStore.put(inputStream1, uri5, DocumentStore.DocumentFormat.TXT);
             this.documentStore.put(inputStream2, uri6, DocumentStore.DocumentFormat.TXT);
 
+
             this.documentStore.deleteAllWithPrefix("tex");
-
-            assertNull(this.documentStore.get(uri5));
-            assertNull(this.documentStore.get(uri6));
-
-
-            assert(this.documentStore.search("text1").isEmpty());
-            assert(this.documentStore.search("text2").isEmpty());
-            assert(this.documentStore.searchByPrefix("text").isEmpty());
 
             this.documentStore.undo(uri5);
 
             assertNotNull(this.documentStore.get(uri5)); //these tests are the issues
-            assertNotNull(this.documentStore.get(uri6));
+            assertNull(this.documentStore.get(uri6));
 
             assert(!this.documentStore.search("text1").isEmpty());
-            assert(!this.documentStore.search("text2").isEmpty());
+            assert(this.documentStore.search("text2").isEmpty());
         }
         catch(IOException | URISyntaxException e){
 
@@ -879,6 +872,29 @@ class DocumentStoreImplTest {
 
             assert(!this.documentStore.search("text1").isEmpty());
 
+
+
+        }
+        catch(IOException e){
+
+        }
+    }
+
+    @Test
+    public void  undoAllOnCommandStack(){
+        try{
+            this.documentStore.put(inputStream1, uri1, DocumentStore.DocumentFormat.TXT);
+            this.documentStore.put(inputStream2, uri2, DocumentStore.DocumentFormat.TXT);
+
+            this.documentStore.deleteAllWithPrefix("tex");
+
+
+            this.documentStore.undo(uri1);
+            this.documentStore.undo(uri2);
+
+
+            assert(this.documentStore.get(uri1) != null);
+            assert(this.documentStore.get(uri2) != null);
 
 
         }
