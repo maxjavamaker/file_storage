@@ -5,8 +5,13 @@ import edu.yu.cs.com1320.project.Stack;
  * @param <T>
  */
 public class StackImpl<T> implements Stack<T>{
-    private Node head = null;
-    private int size = 0;
+    private Node head;
+    private int size;
+
+    public StackImpl(){
+        size = 0;
+        head = null;
+    }
 
     private class Node{
         private Node next;
