@@ -10,9 +10,9 @@ public abstract class MinHeap<E extends Comparable<E>> {
     protected E[] elements;
     protected int count = 0;
 
-    public abstract void reHeapify(E element);
+    protected abstract void reHeapify(E element);
 
-    protected abstract int getArrayIndex(E element);
+    public abstract int getArrayIndex(E element);
 
     protected abstract void doubleArraySize();
 

@@ -11,13 +11,13 @@ import java.util.Set;
 
 
 public class DocumentImpl implements Document {
-    private boolean isBinary;
+    private final boolean isBinary;
     private String text;
-    private URI uri;
+    private final URI uri;
     private byte[] binaryData;
     private long lastUseTime;
-    private HashTable<String, String> metadata = new HashTableImpl<>();
-    private HashMap<String, Integer> words = new HashMap<>();
+    private final HashTable<String, String> metadata = new HashTableImpl<>();
+    private final HashMap<String, Integer> words = new HashMap<>();
 
     public DocumentImpl(URI uri, String txt) {
         if (uri == null || txt == null || uri.toString().isEmpty() || txt.isEmpty()) {
@@ -108,7 +108,7 @@ public class DocumentImpl implements Document {
 
     /**
      * how many times does the given word appear in the document?
-     * @param word
+     * @param word;
      * @return the number of times the given words appears in the document. If it's a binary document, return 0.
      */
     public int wordCount(String word) {

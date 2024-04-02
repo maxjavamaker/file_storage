@@ -1,10 +1,8 @@
 package edu.yu.cs.com1320.project.stage5.impl;
 
 import edu.yu.cs.com1320.project.HashTable;
-import edu.yu.cs.com1320.project.MinHeap;
 import edu.yu.cs.com1320.project.Stack;
 import edu.yu.cs.com1320.project.impl.HashTableImpl;
-import edu.yu.cs.com1320.project.impl.MinHeapImpl;
 import edu.yu.cs.com1320.project.impl.StackImpl;
 import edu.yu.cs.com1320.project.impl.TrieImpl;
 import edu.yu.cs.com1320.project.stage5.Document;
@@ -12,6 +10,9 @@ import edu.yu.cs.com1320.project.stage5.DocumentStore;
 import edu.yu.cs.com1320.project.undo.CommandSet;
 import edu.yu.cs.com1320.project.undo.GenericCommand;
 import edu.yu.cs.com1320.project.undo.Undoable;
+import edu.yu.cs.com1320.project.impl.MinHeapImpl;
+import edu.yu.cs.com1320.project.MinHeap;
+
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -21,14 +22,12 @@ import java.util.*;
 import java.util.function.Consumer;
 
 public class DocumentStoreImpl implements DocumentStore {
-    private final HashTable<URI, Document> documents = new HashTableImpl<>();
-    private final TrieImpl<Document> documentTrie = new TrieImpl<>();
-    private final Stack<Undoable> stack = new StackImpl<>();
-    private final MinHeap<Document> minHeap = new MinHeapImpl<>();
-    private Integer docLimit = null;
-    private boolean calledDocLimit = false;
-    private Integer memoryLimit = null;
-    private boolean calledMemoryLimit = false;
+    private final HashTable<URI, Document> docHashTable = new HashTableImpl<>();
+    private final TrieImpl<Document> docTrie = new TrieImpl<>();
+    private final Stack<Undoable>undoStack = new StackImpl<>();
+    private final MinHeap<Document> docHeap = new MinHeapImpl<>();
+    private boolean setDocLimit = false, setMemoryLimit = false;
+    private int docLimit, memoryLimit;
 
     /**
      * set the given key-value metadata pair for the document at the given uri
@@ -39,13 +38,13 @@ public class DocumentStoreImpl implements DocumentStore {
      * @throws IllegalArgumentException if the uri is null or blank, if there is no document stored at that uri, or if the key is null or blank
      */
     public String setMetadata(URI uri, String key, String value){
-        if (uri == null || uri.toString().isEmpty() || key == null || key.isEmpty() || !this.documents.containsKey(uri)) {
+        if (uri == null || uri.toString().isEmpty() || key == null || key.isEmpty() || !this.docHashTable.containsKey(uri)) {
             throw new IllegalArgumentException();
         }
 
-        this.undoSetMetaDataLogic(this.documents.get(uri), key);
-        documents.get(uri).setLastUseTime(System.nanoTime()); //update last used time
-        return documents.get(uri).setMetadataValue(key, value);
+        docHashTable.get(uri).setLastUseTime(System.nanoTime()); //update last used time
+        this.undoSetMetaDataLogic(this.docHashTable.get(uri), key);
+        return docHashTable.get(uri).setMetadataValue(key, value);
     }
 
     /**
@@ -57,12 +56,12 @@ public class DocumentStoreImpl implements DocumentStore {
      * @throws IllegalArgumentException if the uri is null or blank, if there is no document stored at that uri, or if the key is null or blank
      */
     public String getMetadata(URI uri, String key){
-        if (uri == null || uri.toString().isEmpty() || key == null || key.isEmpty() || !this.documents.containsKey(uri)) {
+        if (uri == null || uri.toString().isEmpty() || key == null || key.isEmpty() || !this.docHashTable.containsKey(uri)) {
             throw new IllegalArgumentException();
         }
 
-        documents.get(uri).setLastUseTime(System.nanoTime());  //update last used time
-        return documents.get(uri).getMetadataValue(key);
+        docHashTable.get(uri).setLastUseTime(System.nanoTime());  //update last used time
+        return docHashTable.get(uri).getMetadataValue(key);
     }
 
     /**
@@ -79,8 +78,8 @@ public class DocumentStoreImpl implements DocumentStore {
         }
 
         if (input == null){
-            if(documents.containsKey(uri)) {
-                int hashCode = documents.get(uri).hashCode();
+            if(docHashTable.containsKey(uri)) {
+                int hashCode = docHashTable.get(uri).hashCode();
                 this.delete(uri);
                 return hashCode;
             }
@@ -109,48 +108,51 @@ public class DocumentStoreImpl implements DocumentStore {
      * @return the given document
      */
     public Document get(URI url) {
-        documents.get(url).setLastUseTime(System.nanoTime());
-        return this.documents.get(url);
+        if (this.docHashTable.get(url) != null){
+            this.docHashTable.get(url).setLastUseTime(System.nanoTime());
+        }
+        return this.docHashTable.get(url);
     }
     /**
      * @param url the unique identifier of the document to delete
      * @return true if the document is deleted, false if no document exists with that URI
      */
     public boolean delete(URI url){
-        if (this.documents.get(url) == null){  //check if the document is in the hashtable, if not return false
+        if (this.docHashTable.get(url) == null){  //check if the document is in the hashtable, if not return false
             return false;
         }
 
+        this.docHashTable.get(url).setLastUseTime(System.nanoTime());
         this.undoDeleteLogic(url);
-        this.removeDocumentWordsFromTrie(this.documents.get(url));  //remove every word in the document from the trie
-        return documents.put(url, null) != null;
+        this.removeDocumentWordsFromTrie(this.docHashTable.get(url));  //remove every word in the document from the trie
+        return docHashTable.put(url, null) != null;
     }
 
     private void removeDocumentWordsFromTrie(Document document){
         for (String word : document.getWords()){  //removing every word in the document from the trie
-            documentTrie.delete(word, document);
+            docTrie.delete(word, document);
         }
     }
 
     private int add(URI uri, Document document){
         document.setLastUseTime(System.nanoTime());  //update last used time
-        minHeap.reHeapify(document);
+        this.docHeapInsert(document);
 
-        if (documents.containsKey(uri)){
-            this.removeDocumentWordsFromTrie(this.documents.get(uri));
+        if (docHashTable.containsKey(uri)){
+            this.removeDocumentWordsFromTrie(this.docHashTable.get(uri));
             this.undoDeleteLogic(uri);  //logic to undo changing document is the same as the logic for undoing delete
 
-            return documents.put(uri, document).hashCode();
+            return docHashTable.put(uri, document).hashCode();
         }
 
-        documents.put(uri, document);
+        docHashTable.put(uri, document);
         this.undoSetDocumentLogic(uri);
         return 0;
     }
 
     private void addDocumentWordsToTrie(Document document){
         for (String word : document.getWords()){  //adding every word in the document to the trie
-            documentTrie.put(word, document);
+            docTrie.put(word, document);
         }
     }
 
@@ -159,17 +161,17 @@ public class DocumentStoreImpl implements DocumentStore {
      * @throws IllegalStateException if there are no actions to be undone, i.e. the command stack is empty
      */
     public void undo() throws IllegalStateException {
-        if (stack.size() == 0) {
+        if (undoStack.size() == 0) {
             throw new IllegalStateException();
         }
 
-        if (stack.peek() instanceof CommandSet<?>){
-            CommandSet<?> temp = (CommandSet<?>) stack.pop();
+        if (undoStack.peek() instanceof CommandSet<?>){
+            CommandSet<?> temp = (CommandSet<?>) undoStack.pop();
             temp.undoAll();
         }
 
         else {
-            stack.pop().undo();
+            undoStack.pop().undo();
         }
     }
 
@@ -183,23 +185,23 @@ public class DocumentStoreImpl implements DocumentStore {
 
         Stack<Undoable> helper = new StackImpl<>();
 
-        while(stack.size() != 0 && !undidAction){
-            if (stack.peek() instanceof CommandSet<?>){
-                if (this.undoURLCommandSet(stack.peek(), url)){
+        while(undoStack.size() != 0 && !undidAction){
+            if (undoStack.peek() instanceof CommandSet<?>){
+                if (this.undoURLCommandSet(undoStack.peek(), url)){
                     undidAction = true;
                 } else {
-                    helper.push(stack.pop());
+                    helper.push(undoStack.pop());
                 }
             } else{
-                if (this.undoURLGenericCommand(stack.peek(), url)){
+                if (this.undoURLGenericCommand(undoStack.peek(), url)){
                     undidAction = true;
                 } else{
-                    helper.push(stack.pop());
+                    helper.push(undoStack.pop());
                 }
             }
         }
         while(helper.size() != 0) {
-            stack.push(helper.pop());
+            undoStack.push(helper.pop());
         }
 
         if (!undidAction){
@@ -218,7 +220,7 @@ public class DocumentStoreImpl implements DocumentStore {
         if (uriSet.undo(url)){  //if it contains the target undo just the genericCommand on the target
             undidAction = true;
             if (uriSet.size() == 0){  //if all commands were undone remove command set from the stack
-                stack.pop();
+                undoStack.pop();
             }
         }
 
@@ -236,7 +238,7 @@ public class DocumentStoreImpl implements DocumentStore {
         if (genericURI.getTarget().equals(url)){
             genericURI.undo();
             undidAction = true;
-            stack.pop();
+            undoStack.pop();
         }
 
         return undidAction;
@@ -246,32 +248,39 @@ public class DocumentStoreImpl implements DocumentStore {
         if (this.getMetadata(document.getKey(), key) != null) {  //check if the metadata previously existed
             String previousValue = document.getMetadataValue(key);
 
-            Consumer<URI> consumer = revertMetadata -> document.setMetadataValue(key, previousValue);
-            stack.push(new GenericCommand<>(document.getKey(), consumer));
+            Consumer<URI> consumer = revertMetadata -> {
+                document.setMetadataValue(key, previousValue);
+                document.setLastUseTime(System.nanoTime());
+            };
+            undoStack.push(new GenericCommand<>(document.getKey(), consumer));
         }
 
         else{
-            Consumer<URI> consumer = revertMetadata -> document.setMetadataValue(key, null);
-            stack.push(new GenericCommand<>(document.getKey(), consumer));
+            Consumer<URI> consumer = revertMetadata -> {
+                document.setMetadataValue(key, null);
+                document.setLastUseTime(System.nanoTime());
+            };
+            undoStack.push(new GenericCommand<>(document.getKey(), consumer));
         }
     }
 
     private void undoSetDocumentLogic(URI uri){
-        Consumer<URI> consumer = restoreDocument -> {
-            this.removeDocumentWordsFromTrie(this.documents.get(uri));
-            documents.put(uri, null);
+        Consumer<URI> consumer = restoreDocument -> {  //don't update nanoTime because document will be deleted
+            this.removeDocumentWordsFromTrie(this.docHashTable.get(uri));
+            docHashTable.put(uri, null);
         };
 
-        stack.push(new GenericCommand<>(uri, consumer));
+        undoStack.push(new GenericCommand<>(uri, consumer));
     }
 
     private void undoDeleteLogic(URI url){  //same logic for changing a document
-        Document previousDocument = documents.get(url);
+        Document previousDocument = docHashTable.get(url);
         Consumer<URI> consumer = restoreDocument -> {
-            documents.put(url, previousDocument);
-            this.addDocumentWordsToTrie(this.documents.get(url));
+            docHashTable.put(url, previousDocument);
+            this.docHashTable.get(url).setLastUseTime(System.nanoTime());
+            this.addDocumentWordsToTrie(this.docHashTable.get(url));
         };
-        stack.push(new GenericCommand<>(url, consumer));
+        undoStack.push(new GenericCommand<>(url, consumer));
     }
 
     /**
@@ -286,7 +295,7 @@ public class DocumentStoreImpl implements DocumentStore {
             throw new IllegalArgumentException();
         }
 
-        return documentTrie.getSorted(keyword, createComparator(keyword));  //create comparator and pass it to tries' get sorted method
+        return this.updateNanoTime(docTrie.getSorted(keyword, createComparator(keyword)));  //create comparator and pass it to tries' get sorted method, update all the docs nanoTime
     }
 
     private Comparator<Document> createComparator(String keyword){
@@ -301,7 +310,7 @@ public class DocumentStoreImpl implements DocumentStore {
      * @return a List of the matches. If there are no matches, return an empty list.
      */
     public List<Document> searchByPrefix(String keywordPrefix){
-        return documentTrie.getAllWithPrefixSorted(keywordPrefix, createPrefixComparator(keywordPrefix)); //create comparator and pass it to tries' getAllWithPrefixSorted method
+        return this.updateNanoTime(docTrie.getAllWithPrefixSorted(keywordPrefix, createPrefixComparator(keywordPrefix))); //create comparator and pass it to tries' getAllWithPrefixSorted method, update all docs nanoTime
     }
 
     private Comparator<Document> createPrefixComparator(String keyword){
@@ -348,7 +357,7 @@ public class DocumentStoreImpl implements DocumentStore {
     public List<Document> searchByMetadata(Map<String,String> keysValues){
         List<Document>  docList = new ArrayList<>();
 
-        for (Document doc : this.documents.values()){  //check each document in the hashtable to see if its metadata matches the keysValues map
+        for (Document doc : this.docHashTable.values()){  //check each document in the hashtable to see if its metadata matches the keysValues map
             boolean addToList = true;
             for (String key : keysValues.keySet()){
                 if (doc.getMetadata().get(key) == null || !doc.getMetadata().get(key).equals(keysValues.get(key))){
@@ -362,7 +371,7 @@ public class DocumentStoreImpl implements DocumentStore {
             }
         }
 
-        return docList;
+        return this.updateNanoTime(docList);
     }
 
     /**
@@ -384,7 +393,7 @@ public class DocumentStoreImpl implements DocumentStore {
             }
         }
 
-        return finalList;
+        return this.updateNanoTime(finalList);
     }
 
     /**
@@ -405,7 +414,7 @@ public class DocumentStoreImpl implements DocumentStore {
             }
         }
 
-        return finalList;
+        return this.updateNanoTime(finalList);
     }
 
     /**
@@ -454,20 +463,20 @@ public class DocumentStoreImpl implements DocumentStore {
         for (Document document : docs){  //cycle through every document
             document.setLastUseTime(System.nanoTime());  //update last used time
             for (String word : document.getWords()) {  //cycle through every word in the document
-                this.documentTrie.delete(word, document);  //delete the document at the word
+                this.docTrie.delete(word, document);  //delete the document at the word
             }
 
             Consumer<URI> consumer = documentPut -> {  //undo logic
                 for (String word : document.getWords()) {
-                    this.documentTrie.put(word, document);
+                    this.docTrie.put(word, document);
                 }
-                document.setLastUseTime(System.nanoTime());  //update last used time
-                this.documents.put(document.getKey(), document);
+                document.setLastUseTime(System.nanoTime());  //update docs nanoTime
+                this.docHashTable.put(document.getKey(), document);
             };
 
             uriSet.add(document.getKey());  //add uri to the set
 
-            this.documents.put(document.getKey(), null);  //delete document from hashtable
+            this.docHashTable.put(document.getKey(), null);  //delete document from hashtable
             genericCommand = new GenericCommand<>(document.getKey(), consumer);
 
             if (createCommandSet) { //add generic command to the command set
@@ -475,13 +484,74 @@ public class DocumentStoreImpl implements DocumentStore {
             }
 
             else{  //push the generic command set to the stack
-                this.stack.push(genericCommand);
+                this.undoStack.push(genericCommand);
                 return uriSet;
             }
         }
 
-        this.stack.push(commandSet);
+        this.undoStack.push(commandSet);
         return uriSet;
+    }
+
+    private List<Document> updateNanoTime(List<Document> docList){
+        for (Document doc : docList){
+            doc.setLastUseTime(System.nanoTime());
+        }
+
+        return docList;
+    }
+
+    private void docHeapInsert(Document document){
+        this.docHeap.insert(document);  //add document to the heap
+
+        //while the doc limit or memory limit is violated, remove documents from the heap, trie, hashtable, and undoStack
+        while(this.docLimit < this.docHashTable.size() || this.memoryLimit< this.getTotalMemory()){
+            this.delete(document.getKey());
+            this.docHeap.remove();
+            this.removeDocumentFromStack(document.getKey());
+        }
+    }
+
+    private void removeDocumentFromStack(URI uri){
+        Stack<Undoable> helper = new StackImpl<>();
+
+        while(undoStack.size() != 0){
+            if (undoStack.peek() instanceof CommandSet<?> temp1) {
+                CommandSet<URI> temp2 = (CommandSet<URI>) temp1;
+                if (temp2.containsTarget(uri)){
+                    undoStack.pop();
+                }
+                else{
+                    helper.push(undoStack.pop());
+                }
+
+            }
+            else{
+                GenericCommand<?> temp1 = (GenericCommand<?>) undoStack.pop();
+                GenericCommand<URI> temp2 = (GenericCommand<URI>) temp1;
+
+                if (temp2.getTarget().equals(uri)){
+                    undoStack.pop();
+                }
+                else{
+                    helper.push(undoStack.pop());
+                }
+            }
+        }
+        while(helper.size() != 0) {
+            undoStack.push(helper.pop());
+        }
+
+    }
+
+    private int getTotalMemory(){
+        int memory = 0;
+        for (Document doc : this.docHashTable.values()) {
+            memory += doc.getDocumentTxt().getBytes().length;
+            memory += doc.getDocumentBinaryData().length;
+        }
+
+        return memory;
     }
 
     /**
@@ -493,9 +563,9 @@ public class DocumentStoreImpl implements DocumentStore {
         if (limit < 1){
             throw new IllegalArgumentException("limit cannot be less than 1");
         }
-
-        if (!this.calledDocLimit){
+        if (!this.setDocLimit){
             this.docLimit = limit;
+            this.setDocLimit = true;
         }
     }
 
@@ -508,9 +578,9 @@ public class DocumentStoreImpl implements DocumentStore {
         if (limit < 1){
             throw new IllegalArgumentException("limit cannot be less than 1");
         }
-
-        if (!this.calledMemoryLimit){
+        if (!this.setMemoryLimit){
             this.memoryLimit = limit;
+            this.setMemoryLimit = true;
         }
     }
 }

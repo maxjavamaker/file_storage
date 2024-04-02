@@ -10,17 +10,21 @@ public class MinHeapImpl<E extends Comparable<E>> extends MinHeap<E> {
     }
 
     @Override
-    public void reHeapify(E element){
-        int k = this.getArrayIndex(element);  //index of the element
-
-        this.downHeap(k);
+    protected void reHeapify(E element){
+        int k = this.getArrayIndex(element);
+        if (!this.isGreater(k, k/2)){  //if k is smaller than its parent upheap
+            this.upHeap(k);
+        }
+        else if (this.isGreater(k, 2*k) || this.isGreater(k, 2*k + 1)){  //if k is greater than its children downheap
+            this.downHeap(k);
+        }
 
     }
 
     @Override
-    protected int getArrayIndex(E element){
+    public int getArrayIndex(E element){
         for (int i = 0; i < this.elements.length; i++){
-            if (this.elements[i].equals(element)){
+            if (this.elements[i] != null && this.elements[i].equals(element)){
                 return i;
             }
         }

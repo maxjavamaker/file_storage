@@ -157,7 +157,6 @@ public class DocumentImplTest {
         String text = "hey how're do you do, how are you?> do now?";
         Document document = new DocumentImpl(uri, text);
         assertEquals(7, document.getWords().size());
-        System.out.println(document.getWords());
 
     }
 
@@ -170,7 +169,9 @@ public class DocumentImplTest {
 
     @Test
     public void wordCountZero(){
-
+        String text = "hey how do you do, how are you do now?";
+        Document document = new DocumentImpl(uri, text);
+        assertEquals(0, document.wordCount("Do"));
     }
 }
 
