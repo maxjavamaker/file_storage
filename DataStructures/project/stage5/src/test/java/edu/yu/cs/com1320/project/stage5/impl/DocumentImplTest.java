@@ -1,6 +1,6 @@
-package edu.yu.cs.com1320.project.stage4.impl;
+package edu.yu.cs.com1320.project.stage5.impl;
 
-import edu.yu.cs.com1320.project.stage4.Document;
+import edu.yu.cs.com1320.project.stage5.Document;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -157,7 +157,7 @@ public class DocumentImplTest {
         String text = "hey how're do you do, how are you?> do now?";
         Document document = new DocumentImpl(uri, text);
         assertEquals(7, document.getWords().size());
-
+        System.out.println(document.getWords());
 
     }
 
@@ -169,9 +169,7 @@ public class DocumentImplTest {
     }
 
     @Test
-    public void caseSensitiveWordCount(){
-        String text = "Hey hey how How are Are are?";
-        Document document = new DocumentImpl(uri, text);
+    public void wordCountZero(){
 
     }
 }
