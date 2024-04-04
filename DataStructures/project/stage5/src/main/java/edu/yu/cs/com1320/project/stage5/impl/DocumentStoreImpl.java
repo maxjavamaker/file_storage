@@ -42,7 +42,7 @@ public class DocumentStoreImpl implements DocumentStore {
             throw new IllegalArgumentException();
         }
 
-        docHashTable.get(uri).setLastUseTime(System.nanoTime()); //update last used time
+        this.updateDoc(uri);
         this.undoSetMetaDataLogic(this.docHashTable.get(uri), key);
         return docHashTable.get(uri).setMetadataValue(key, value);
     }
@@ -60,7 +60,7 @@ public class DocumentStoreImpl implements DocumentStore {
             throw new IllegalArgumentException();
         }
 
-        docHashTable.get(uri).setLastUseTime(System.nanoTime());  //update last used time
+        this.updateDoc(uri);
         return docHashTable.get(uri).getMetadataValue(key);
     }
 
@@ -109,7 +109,7 @@ public class DocumentStoreImpl implements DocumentStore {
      */
     public Document get(URI url) {
         if (this.docHashTable.get(url) != null){
-            this.docHashTable.get(url).setLastUseTime(System.nanoTime());
+            this.updateDoc(url);
         }
         return this.docHashTable.get(url);
     }
@@ -122,7 +122,6 @@ public class DocumentStoreImpl implements DocumentStore {
             return false;
         }
 
-        this.docHashTable.get(url).setLastUseTime(System.nanoTime());
         this.undoDeleteLogic(url);
         this.removeDocumentWordsFromTrie(this.docHashTable.get(url));  //remove every word in the document from the trie
         return docHashTable.put(url, null) != null;
@@ -135,7 +134,7 @@ public class DocumentStoreImpl implements DocumentStore {
     }
 
     private int add(URI uri, Document document){
-        document.setLastUseTime(System.nanoTime());  //update last used time
+        this.updateDoc(uri);
         this.docHeapInsert(document);
 
         if (docHashTable.containsKey(uri)){
@@ -250,7 +249,7 @@ public class DocumentStoreImpl implements DocumentStore {
 
             Consumer<URI> consumer = revertMetadata -> {
                 document.setMetadataValue(key, previousValue);
-                document.setLastUseTime(System.nanoTime());
+                this.updateDoc(document.getKey());
             };
             undoStack.push(new GenericCommand<>(document.getKey(), consumer));
         }
@@ -258,7 +257,7 @@ public class DocumentStoreImpl implements DocumentStore {
         else{
             Consumer<URI> consumer = revertMetadata -> {
                 document.setMetadataValue(key, null);
-                document.setLastUseTime(System.nanoTime());
+                this.updateDoc(document.getKey());
             };
             undoStack.push(new GenericCommand<>(document.getKey(), consumer));
         }
@@ -277,8 +276,8 @@ public class DocumentStoreImpl implements DocumentStore {
         Document previousDocument = docHashTable.get(url);
         Consumer<URI> consumer = restoreDocument -> {
             docHashTable.put(url, previousDocument);
-            this.docHashTable.get(url).setLastUseTime(System.nanoTime());
             this.addDocumentWordsToTrie(this.docHashTable.get(url));
+            this.updateDoc(url);
         };
         undoStack.push(new GenericCommand<>(url, consumer));
     }
@@ -295,7 +294,7 @@ public class DocumentStoreImpl implements DocumentStore {
             throw new IllegalArgumentException();
         }
 
-        return this.updateNanoTime(docTrie.getSorted(keyword, createComparator(keyword)));  //create comparator and pass it to tries' get sorted method, update all the docs nanoTime
+        return this.updateDoc(docTrie.getSorted(keyword, createComparator(keyword)));  //create comparator and pass it to tries' get sorted method, update all the docs nanoTime
     }
 
     private Comparator<Document> createComparator(String keyword){
@@ -310,7 +309,7 @@ public class DocumentStoreImpl implements DocumentStore {
      * @return a List of the matches. If there are no matches, return an empty list.
      */
     public List<Document> searchByPrefix(String keywordPrefix){
-        return this.updateNanoTime(docTrie.getAllWithPrefixSorted(keywordPrefix, createPrefixComparator(keywordPrefix))); //create comparator and pass it to tries' getAllWithPrefixSorted method, update all docs nanoTime
+        return this.updateDoc(docTrie.getAllWithPrefixSorted(keywordPrefix, createPrefixComparator(keywordPrefix))); //create comparator and pass it to tries' getAllWithPrefixSorted method, update all docs nanoTime
     }
 
     private Comparator<Document> createPrefixComparator(String keyword){
@@ -371,7 +370,7 @@ public class DocumentStoreImpl implements DocumentStore {
             }
         }
 
-        return this.updateNanoTime(docList);
+        return this.updateDoc(docList);
     }
 
     /**
@@ -393,7 +392,7 @@ public class DocumentStoreImpl implements DocumentStore {
             }
         }
 
-        return this.updateNanoTime(finalList);
+        return this.updateDoc(finalList);
     }
 
     /**
@@ -414,7 +413,7 @@ public class DocumentStoreImpl implements DocumentStore {
             }
         }
 
-        return this.updateNanoTime(finalList);
+        return this.updateDoc(finalList);
     }
 
     /**
@@ -461,7 +460,6 @@ public class DocumentStoreImpl implements DocumentStore {
         GenericCommand<URI> genericCommand;
 
         for (Document document : docs){  //cycle through every document
-            document.setLastUseTime(System.nanoTime());  //update last used time
             for (String word : document.getWords()) {  //cycle through every word in the document
                 this.docTrie.delete(word, document);  //delete the document at the word
             }
@@ -470,8 +468,8 @@ public class DocumentStoreImpl implements DocumentStore {
                 for (String word : document.getWords()) {
                     this.docTrie.put(word, document);
                 }
-                document.setLastUseTime(System.nanoTime());  //update docs nanoTime
                 this.docHashTable.put(document.getKey(), document);
+                this.updateDoc(document.getKey());
             };
 
             uriSet.add(document.getKey());  //add uri to the set
@@ -493,12 +491,17 @@ public class DocumentStoreImpl implements DocumentStore {
         return uriSet;
     }
 
-    private List<Document> updateNanoTime(List<Document> docList){
+    private List<Document> updateDoc(List<Document> docList){
         for (Document doc : docList){
             doc.setLastUseTime(System.nanoTime());
         }
 
         return docList;
+    }
+
+    private void updateDoc(URI uri){
+        docHashTable.get(uri).setLastUseTime(System.nanoTime());  //update last used time
+        this.docHeap.reHeapify(docHashTable.get(uri));  //order the heap
     }
 
     private void docHeapInsert(Document document){
