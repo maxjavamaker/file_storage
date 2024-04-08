@@ -26,8 +26,8 @@ public class DocumentStoreImpl implements DocumentStore {
     private final TrieImpl<Document> docTrie = new TrieImpl<>();
     private final Stack<Undoable>undoStack = new StackImpl<>();
     private final MinHeap<Document> docHeap = new MinHeapImpl<>();
-    private boolean setDocLimit = false, setMemoryLimit = false;
-    private int docLimit, memoryLimit;
+    private int docLimit;
+    private int memoryLimit;
 
     /**
      * set the given key-value metadata pair for the document at the given uri
@@ -123,6 +123,7 @@ public class DocumentStoreImpl implements DocumentStore {
         }
 
         this.undoDeleteLogic(url);
+        this.deleteDocFromHeap(this.docHashTable.get(url));  //delete doc from heap
         this.removeDocumentWordsFromTrie(this.docHashTable.get(url));  //remove every word in the document from the trie
         return docHashTable.put(url, null) != null;
     }
@@ -134,17 +135,18 @@ public class DocumentStoreImpl implements DocumentStore {
     }
 
     private int add(URI uri, Document document){
-        this.updateDoc(uri);
-        this.docHeapInsert(document);
 
         if (docHashTable.containsKey(uri)){
             this.removeDocumentWordsFromTrie(this.docHashTable.get(uri));
             this.undoDeleteLogic(uri);  //logic to undo changing document is the same as the logic for undoing delete
 
-            return docHashTable.put(uri, document).hashCode();
+            int hashCode = docHashTable.put(uri, document).hashCode();
+            this.docHeapInsert(document);
+            return hashCode;
         }
 
         docHashTable.put(uri, document);
+        this.docHeapInsert(document);
         this.undoSetDocumentLogic(uri);
         return 0;
     }
@@ -266,6 +268,7 @@ public class DocumentStoreImpl implements DocumentStore {
     private void undoSetDocumentLogic(URI uri){
         Consumer<URI> consumer = restoreDocument -> {  //don't update nanoTime because document will be deleted
             this.removeDocumentWordsFromTrie(this.docHashTable.get(uri));
+            this.deleteDocFromHeap(this.docHashTable.get(uri));
             docHashTable.put(uri, null);
         };
 
@@ -277,7 +280,8 @@ public class DocumentStoreImpl implements DocumentStore {
         Consumer<URI> consumer = restoreDocument -> {
             docHashTable.put(url, previousDocument);
             this.addDocumentWordsToTrie(this.docHashTable.get(url));
-            this.updateDoc(url);
+            this.docHashTable.get(url).setLastUseTime(System.nanoTime());
+            this.docHeap.insert(this.docHashTable.get(url));
         };
         undoStack.push(new GenericCommand<>(url, consumer));
     }
@@ -458,7 +462,7 @@ public class DocumentStoreImpl implements DocumentStore {
 
         CommandSet<URI> commandSet = new CommandSet<>();
         GenericCommand<URI> genericCommand;
-
+        long time = System.nanoTime();
         for (Document document : docs){  //cycle through every document
             for (String word : document.getWords()) {  //cycle through every word in the document
                 this.docTrie.delete(word, document);  //delete the document at the word
@@ -469,12 +473,15 @@ public class DocumentStoreImpl implements DocumentStore {
                     this.docTrie.put(word, document);
                 }
                 this.docHashTable.put(document.getKey(), document);
-                this.updateDoc(document.getKey());
+                this.docHeap.insert(document);
+                document.setLastUseTime(time);
+                this.docHeap.reHeapify(document);
             };
 
             uriSet.add(document.getKey());  //add uri to the set
 
             this.docHashTable.put(document.getKey(), null);  //delete document from hashtable
+            this.deleteDocFromHeap(document);  //delete doc from the heap
             genericCommand = new GenericCommand<>(document.getKey(), consumer);
 
             if (createCommandSet) { //add generic command to the command set
@@ -491,9 +498,17 @@ public class DocumentStoreImpl implements DocumentStore {
         return uriSet;
     }
 
+    private void deleteDocFromHeap(Document doc){
+        doc.setLastUseTime(0);
+        this.docHeap.reHeapify(doc);
+        this.docHeap.remove();
+    }
+
     private List<Document> updateDoc(List<Document> docList){
+        long time = System.nanoTime();
         for (Document doc : docList){
-            doc.setLastUseTime(System.nanoTime());
+            doc.setLastUseTime(time);  //update last used time
+            this.docHeap.reHeapify(doc);  //order the heap
         }
 
         return docList;
@@ -508,14 +523,14 @@ public class DocumentStoreImpl implements DocumentStore {
         this.docHeap.insert(document);  //add document to the heap
 
         //while the doc limit or memory limit is violated, remove documents from the heap, trie, hashtable, and undoStack
-        while(this.docLimit < this.docHashTable.size() || this.memoryLimit< this.getTotalMemory()){
+        while((docLimit != 0 && this.docLimit < this.docHashTable.size()) || (this.memoryLimit != 0 && this.memoryLimit< this.getTotalMemory())){
             this.delete(document.getKey());
             this.docHeap.remove();
-            this.removeDocumentFromStack(document.getKey());
+            this.deleteDocumentFromStack(document.getKey());
         }
     }
 
-    private void removeDocumentFromStack(URI uri){
+    private void deleteDocumentFromStack(URI uri){
         Stack<Undoable> helper = new StackImpl<>();
 
         while(undoStack.size() != 0){
@@ -530,7 +545,7 @@ public class DocumentStoreImpl implements DocumentStore {
 
             }
             else{
-                GenericCommand<?> temp1 = (GenericCommand<?>) undoStack.pop();
+                GenericCommand<?> temp1 = (GenericCommand<?>) undoStack.peek();
                 GenericCommand<URI> temp2 = (GenericCommand<URI>) temp1;
 
                 if (temp2.getTarget().equals(uri)){
@@ -550,11 +565,36 @@ public class DocumentStoreImpl implements DocumentStore {
     private int getTotalMemory(){
         int memory = 0;
         for (Document doc : this.docHashTable.values()) {
-            memory += doc.getDocumentTxt().getBytes().length;
-            memory += doc.getDocumentBinaryData().length;
+            if (doc.getDocumentTxt() != null) {
+                memory += doc.getDocumentTxt().getBytes().length;
+            }
+            else {
+                memory += doc.getDocumentBinaryData().length;
+            }
         }
 
         return memory;
+    }
+
+    private void complyWithLimits(){
+        if (this.docLimit != 0){
+            while(this.docHashTable.keySet().size() > this.docLimit){
+                this.eraseLeastUsedDoc(this.docHeap.peek());
+            }
+        }
+
+        if (this.memoryLimit != 0){
+            while(this.getTotalMemory() > this.memoryLimit){
+                this.eraseLeastUsedDoc(this.docHeap.peek());
+            }
+        }
+    }
+
+    private void eraseLeastUsedDoc(Document doc){
+        this.removeDocumentWordsFromTrie(doc);  //delete doc from trie
+        this.deleteDocumentFromStack(doc.getKey());  //delete doc from undoStack
+        this.docHeap.remove();  //delete doc from the heap
+        this.docHashTable.put(doc.getKey(), null);  //delete doc from hashtable
     }
 
     /**
@@ -566,10 +606,8 @@ public class DocumentStoreImpl implements DocumentStore {
         if (limit < 1){
             throw new IllegalArgumentException("limit cannot be less than 1");
         }
-        if (!this.setDocLimit){
-            this.docLimit = limit;
-            this.setDocLimit = true;
-        }
+        this.docLimit = limit;
+        this.complyWithLimits();
     }
 
     /**
@@ -581,9 +619,7 @@ public class DocumentStoreImpl implements DocumentStore {
         if (limit < 1){
             throw new IllegalArgumentException("limit cannot be less than 1");
         }
-        if (!this.setMemoryLimit){
-            this.memoryLimit = limit;
-            this.setMemoryLimit = true;
-        }
+        this.memoryLimit = limit;
+        this.complyWithLimits();
     }
 }

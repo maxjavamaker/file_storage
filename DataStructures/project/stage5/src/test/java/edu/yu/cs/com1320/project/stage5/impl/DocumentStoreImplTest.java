@@ -2,6 +2,7 @@ package edu.yu.cs.com1320.project.stage5.impl;
 
 import edu.yu.cs.com1320.project.stage5.Document;
 import edu.yu.cs.com1320.project.stage5.DocumentStore;
+import edu.yu.cs.com1320.project.stage5.impl.DocumentStoreImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -902,5 +903,236 @@ class DocumentStoreImplTest {
 
         }
     }
+
+    /*@Test
+    public void putAddsDocToHeap() {
+        try {
+            Document document1 = new DocumentImpl(uri1, text1);
+            documentStore.put(inputStream1, uri1, DocumentStore.DocumentFormat.TXT);
+            assert(this.documentStore.peek().equals(document1));
+            documentStore.put(inputStream2, uri2, DocumentStore.DocumentFormat.TXT);
+            assert(this.documentStore.peek().equals(document1));
+        }
+        catch(IOException e){
+
+        }
+
+    }
+
+    @Test
+    public void setLimitUnderOne(){
+        assertThrows(IllegalArgumentException.class, () -> {
+            this.documentStore.setMaxDocumentCount(0);});
+        assertThrows(IllegalArgumentException.class, () -> {
+            this.documentStore.setMaxDocumentBytes(0);});
+    }
+
+    @Test
+    public void complyWithDocLimits(){
+        try {
+            Document document1 = new DocumentImpl(uri1, text1);
+            Document document2 = new DocumentImpl(uri2, text2);
+            documentStore.put(inputStream1, uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(inputStream2, uri2, DocumentStore.DocumentFormat.TXT);
+            assert(this.documentStore.peek().equals(document1));
+            this.documentStore.setMaxDocumentCount(1);
+            assert(this.documentStore.peek().equals(document2));
+            assert(this.documentStore.get(uri1) == null);
+            assert(this.documentStore.search("text1").isEmpty());
+        }
+        catch(IOException e){
+
+        }
+    }
+
+    @Test
+    public void complyWithMemoryLimits(){
+        try {
+            Document document1 = new DocumentImpl(uri1, text1);
+            Document document2 = new DocumentImpl(uri2, text2);
+            documentStore.put(inputStream1, uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(inputStream2, uri2, DocumentStore.DocumentFormat.TXT);
+            assert(this.documentStore.peek().equals(document1));
+            this.documentStore.setMaxDocumentBytes(9);
+            assert(this.documentStore.peek().equals(document2));
+            assert(this.documentStore.get(uri1) == null);
+            assert(this.documentStore.search("text1").isEmpty());
+        }
+        catch(IOException e){
+
+        }
+    }
+
+    @Test
+    public void complyWithMemoryLimitsMultipleDocs(){
+        try {
+            URI uri3 = new URI("3");
+            URI uri4 = new URI("4");
+            URI uri5 = new URI("5");
+
+            InputStream inputStream3 = new ByteArrayInputStream("h".getBytes());
+            InputStream inputStream4 = new ByteArrayInputStream("g".getBytes());
+            InputStream inputStream5 = new ByteArrayInputStream("k".getBytes());
+
+            Document document1 = new DocumentImpl(uri1, text1);
+            Document document2 = new DocumentImpl(uri2, text2);
+            Document document3 = new DocumentImpl(uri3, "h");
+            Document document4 = new DocumentImpl(uri4, "g");
+            Document document5 = new DocumentImpl(uri5, "k");
+
+            documentStore.put(inputStream1, uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(inputStream2, uri2, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(inputStream3, uri3, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(inputStream4, uri4, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(inputStream5, uri5, DocumentStore.DocumentFormat.TXT);
+
+            assert(this.documentStore.peek().equals(document1));
+            this.documentStore.setMaxDocumentBytes(1);
+            assert(this.documentStore.peek().equals(document5));
+            assert(this.documentStore.get(uri1) == null);
+            assert(this.documentStore.search("text1").isEmpty());
+            assert(this.documentStore.peek().equals(document5));
+            assertThrows(IllegalStateException.class, () -> {
+                this.documentStore.undo(uri4);});
+            assert(this.documentStore.get(uri5) != null);
+            this.documentStore.undo(uri5);
+            assert(this.documentStore.get(uri5) == null);
+        }
+        catch(IOException | URISyntaxException e){
+
+        }
+    }
+
+    @Test
+    public void metadataUpdatesDoc(){
+        try {
+            Document document1 = new DocumentImpl(uri1, text1);
+            Document document2 = new DocumentImpl(uri2, text2);
+            this.documentStore.put(inputStream1, uri1, DocumentStore.DocumentFormat.TXT);
+            this.documentStore.put(inputStream2, uri2, DocumentStore.DocumentFormat.TXT);
+            assert(this.documentStore.peek().equals(document1));
+            this.documentStore.setMetadata(uri1, "key", "value");
+            assert(this.documentStore.peek().equals(document2));
+
+        }
+        catch(IOException e){
+
+        }
+    }
+
+    @Test
+    public void undoUpdatesDoc(){
+        try {
+            Document document1 = new DocumentImpl(uri1, text1);
+            Document document2 = new DocumentImpl(uri2, text2);
+            this.documentStore.put(inputStream1, uri1, DocumentStore.DocumentFormat.TXT);
+            this.documentStore.put(inputStream2, uri2, DocumentStore.DocumentFormat.TXT);
+            this.documentStore.setMetadata(uri2, "key", "value");
+            this.documentStore.setMetadata(uri1, "key", "value");
+            assert(this.documentStore.peek().equals(document2));
+            this.documentStore.undo(uri2);
+            assert(this.documentStore.peek().equals(document1));
+        }
+        catch(IOException e){
+
+        }
+    }
+
+    @Test
+    public void undoPutRemovesFromHeap(){
+        try {
+            Document document1 = new DocumentImpl(uri1, text1);
+            this.documentStore.put(inputStream1, uri1, DocumentStore.DocumentFormat.TXT);
+            assert(this.documentStore.peek() != null);
+            assert(!this.documentStore.search("text1").isEmpty());
+            this.documentStore.undo();
+            assert(this.documentStore.peek() == null);
+            assert(this.documentStore.search("text1").isEmpty());
+        }
+        catch(IOException e){
+
+        }
+    }
+
+    @Test
+    public void searchUpdatesDoc(){
+        try {
+            Document document1 = new DocumentImpl(uri1, text1);
+            Document document2 = new DocumentImpl(uri2, text2);
+            this.documentStore.put(inputStream1, uri1, DocumentStore.DocumentFormat.TXT);
+            this.documentStore.put(inputStream2, uri2, DocumentStore.DocumentFormat.TXT);
+
+            long i = this.documentStore.get(uri1).getLastUseTime();
+            long j = this.documentStore.get(uri2).getLastUseTime();
+            this.documentStore.search("text1");
+            assert(this.documentStore.get(uri1).getLastUseTime() != i);
+            assert(this.documentStore.get(uri2).getLastUseTime() == j);
+
+
+        }
+        catch(IOException e){
+
+        }
+    }
+
+    @Test
+    public void deleteDeletesFromHeap(){
+        try {
+            Document document1 = new DocumentImpl(uri1, text1);
+            Document document2 = new DocumentImpl(uri2, text2);
+            this.documentStore.put(inputStream1, uri1, DocumentStore.DocumentFormat.TXT);
+            this.documentStore.put(inputStream2, uri2, DocumentStore.DocumentFormat.TXT);
+
+            this.documentStore.deleteAllWithPrefix("text1");
+            assert(this.documentStore.peek().equals(document2));
+            this.documentStore.deleteAllWithPrefix("text");
+            assert(this.documentStore.peek() == null);
+
+
+        }
+        catch(IOException e){
+
+        }
+    }
+
+    @Test
+    public void docsHaveSameNanoTime(){
+        try {
+            Document document1 = new DocumentImpl(uri1, text1);
+            Document document2 = new DocumentImpl(uri2, text2);
+            this.documentStore.put(inputStream1, uri1, DocumentStore.DocumentFormat.TXT);
+            this.documentStore.put(inputStream2, uri2, DocumentStore.DocumentFormat.TXT);
+
+            List<Document> doc  = documentStore.searchByPrefix("t");
+            assert(doc.get(0).getLastUseTime() == doc.get(1).getLastUseTime());
+
+
+
+
+        }
+        catch(IOException e){
+
+        }
+    }
+
+    @Test
+    public void undoDocsHaveSameNanoTime(){
+        try {
+            Document document1 = new DocumentImpl(uri1, text1);
+            Document document2 = new DocumentImpl(uri2, text2);
+            this.documentStore.put(inputStream1, uri1, DocumentStore.DocumentFormat.TXT);
+            this.documentStore.put(inputStream2, uri2, DocumentStore.DocumentFormat.TXT);
+            this.documentStore.deleteAllWithPrefix("t");
+            this.documentStore.undo();
+            assert(this.documentStore.get(uri1).getLastUseTime() == this.documentStore.get(uri2).getLastUseTime());
+
+
+
+
+        }
+        catch(IOException e){
+
+        }
+    }*/
 }
 

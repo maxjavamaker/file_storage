@@ -6,16 +6,16 @@ import java.util.NoSuchElementException;
 
 public class MinHeapImpl<E extends Comparable<E>> extends MinHeap<E> {
     public MinHeapImpl(){
-        this.elements = (E[]) new Comparable[10];
+        this.elements = (E[]) new Comparable[2];
     }
 
     @Override
     public void reHeapify(E element){
         int k = this.getArrayIndex(element);
-        if (!this.isGreater(k, k/2)){  //if k is smaller than its parent upheap
+        if (k != 1 && !this.isGreater(k, k/2)){  //if it is not more recent than its parent upHeap
             this.upHeap(k);
         }
-        else if (this.isGreater(k, 2*k) || this.isGreater(k, 2*k + 1)){  //if k is greater than its children downheap
+        else if (this.elements.length > 2*k && this.elements[2*k] != null && this.isGreater(k, 2*k)){  //if k is more recent than its kids downHeap
             this.downHeap(k);
         }
 
@@ -33,10 +33,10 @@ public class MinHeapImpl<E extends Comparable<E>> extends MinHeap<E> {
     }
 
     @Override
-    protected void doubleArraySize(){
-        E[] temp = (E[]) new Comparable[this.count * 2];  //double length of array
+    protected void doubleArraySize() {
+        E[] temp = (E[]) new Comparable[this.elements.length * 2];  //double length of array
 
-        for (int i = 0; i < this.count; i++){  //copy over the values
+        for (int i = 0; i < this.elements.length; i++) {  //copy over the values
             temp[i] = this.elements[i];
         }
 

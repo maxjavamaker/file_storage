@@ -27,6 +27,7 @@ public class DocumentImpl implements Document {
         this.uri = uri;
         this.text = txt;
         this.isBinary = false;
+        this.lastUseTime = System.nanoTime();
         this.addWordsToMap(txt); //add every word to a hashmap
     }
 
@@ -38,6 +39,7 @@ public class DocumentImpl implements Document {
         this.uri = uri;
         this.binaryData = binaryData;
         this.isBinary = true;
+        this.lastUseTime = System.nanoTime();
     }
 
     /**
@@ -177,7 +179,7 @@ public class DocumentImpl implements Document {
         if (this.getLastUseTime() == other.getLastUseTime()){
             return 0;
         }
-        else if (this.getLastUseTime() > other.getLastUseTime()){
+        else if (this.getLastUseTime() > other.getLastUseTime()){  //the less the last use time is, the longer the document has been untouched for
             return 1;
         }
         else{

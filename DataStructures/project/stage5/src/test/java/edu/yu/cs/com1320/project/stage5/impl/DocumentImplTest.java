@@ -173,5 +173,36 @@ public class DocumentImplTest {
         Document document = new DocumentImpl(uri, text);
         assertEquals(0, document.wordCount("Do"));
     }
+
+    @Test
+    public void initializingLastUseTime(){
+        Document document = new DocumentImpl(uri, text);
+        assert(document.getLastUseTime() != 0);
+    }
+
+    @Test
+    public void setLastUseTime(){
+        Document document = new DocumentImpl(uri, text);
+        document.setLastUseTime(100);
+        assert(document.getLastUseTime() == 100);
+        document.setLastUseTime(200);
+        assert(document.getLastUseTime() == 200);
+    }
+
+    @Test
+    public void compare(){
+        Document document1 = new DocumentImpl(uri, text);
+        Document document2 = new DocumentImpl(uri2, text);
+
+        assert(document2.compareTo(document1) > 0);
+        assert(document1.compareTo(document2) < 0);
+
+        document2.setLastUseTime(0);
+        assert(document2.compareTo(document1) < 0);
+
+        document1.setLastUseTime(0);
+        assert(document2.compareTo(document1) == 0);
+
+    }
 }
 

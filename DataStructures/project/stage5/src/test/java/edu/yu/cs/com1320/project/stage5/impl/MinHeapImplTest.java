@@ -7,6 +7,8 @@ import edu.yu.cs.com1320.project.stage5.Document;
 import edu.yu.cs.com1320.project.MinHeap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import java.util.NoSuchElementException;
+
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -17,17 +19,56 @@ public class MinHeapImplTest {
     MinHeap<Integer> docHeap;
     @BeforeEach
     public void setup(){
-             docHeap = new MinHeapImpl<>();
+        docHeap = new MinHeapImpl<>();
+    }
+    /*
+    @Test
+    public void getArrayIndex(){
+        docHeap.insert(9);
+        docHeap.insert(6);
+        docHeap.insert(5);
+        docHeap.insert(4);
+        docHeap.insert(2);
+
+        assertEquals(1, docHeap.getArrayIndex(2));
     }
 
     @Test
-    public void getArrayIndex(){
+    public void isEmpty(){
+        assertTrue(docHeap.isEmpty());
+        docHeap.insert(9);
+        assertFalse(docHeap.isEmpty());
+    }
+
+    @Test
+    public void removeException(){
+        assertThrows(NoSuchElementException.class, () -> {
+            docHeap.remove();
+        });
+    }
+
+    @Test
+    public void removeMaintainsOrder(){
+        docHeap.insert(9);
+        docHeap.insert(6);
         docHeap.insert(5);
         docHeap.insert(4);
-        docHeap.insert(3);
-        docHeap.insert(7);
-        docHeap.insert(9);
+        docHeap.insert(2);
 
-        System.out.println(docHeap.getArrayIndex(7));
+        docHeap.remove();
+        assertEquals(1, docHeap.getArrayIndex(4));
+        docHeap.remove();
+        assertEquals(5, docHeap.peek());
+    }
+
+     */
+    @Test
+    public void resizeArray(){
+        docHeap.insert(9);
+        docHeap.insert(6);
+        docHeap.insert(5);
+        docHeap.insert(4);
+        docHeap.insert(2);
+        assertEquals(1, docHeap.getArrayIndex(2));
     }
 }

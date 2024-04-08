@@ -1,4 +1,3 @@
-
 package edu.yu.cs.com1320.project;
 
 import java.util.NoSuchElementException;
@@ -13,7 +12,7 @@ public abstract class MinHeap<E extends Comparable<E>> {
 
     public abstract void reHeapify(E element);
 
-    protected abstract int getArrayIndex(E element);
+    public abstract int getArrayIndex(E element);
 
     protected abstract void doubleArraySize();
 
