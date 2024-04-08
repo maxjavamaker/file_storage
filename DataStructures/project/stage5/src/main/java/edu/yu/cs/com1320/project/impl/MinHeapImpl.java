@@ -22,7 +22,7 @@ public class MinHeapImpl<E extends Comparable<E>> extends MinHeap<E> {
     }
 
     @Override
-    public int getArrayIndex(E element){
+    protected int getArrayIndex(E element){
         for (int i = 0; i < this.elements.length; i++){
             if (this.elements[i] != null && this.elements[i].equals(element)){
                 return i;

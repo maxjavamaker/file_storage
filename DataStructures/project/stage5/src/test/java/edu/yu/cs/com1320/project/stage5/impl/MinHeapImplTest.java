@@ -61,7 +61,7 @@ public class MinHeapImplTest {
         assertEquals(5, docHeap.peek());
     }
 
-     */
+
     @Test
     public void resizeArray(){
         docHeap.insert(9);
@@ -70,5 +70,5 @@ public class MinHeapImplTest {
         docHeap.insert(4);
         docHeap.insert(2);
         assertEquals(1, docHeap.getArrayIndex(2));
-    }
+    }*/
 }
