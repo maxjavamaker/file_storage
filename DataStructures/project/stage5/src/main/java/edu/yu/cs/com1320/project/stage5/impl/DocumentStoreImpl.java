@@ -65,12 +65,12 @@ public class DocumentStoreImpl implements DocumentStore {
     }
 
     /**
-     * @param input  the document being put
-     * @param uri    unique identifier for the document
+     * @param input the document being put
+     * @param uri unique identifier for the document
      * @param format indicates which type of document format is being passed
-     * @return if there is no previous doc at the given URI, return 0. If there is a previous doc, return the hashCode of the previous doc. If InputStream is null, this is a call to delete, and thus return either the hashCode of the deleted doc or 0 if there is no doc to delete.
-     * @throws IOException              if there is an issue reading input
-     * @throws IllegalArgumentException if uri is null or empty, or format is null
+     * @return if there is no previous doc at the given URI, return 0. If there is a previous doc, return the hashCode of the previous doc. If InputStream is null, this is a delete, and thus return either the hashCode of the deleted doc or 0 if there is no doc to delete.
+     * @throws IOException if there is an issue reading input
+     * @throws IllegalArgumentException if url or format are null, OR IF THE MEMORY FOOTPRINT OF THE DOCUMENT IS > MAX DOCUMENT BYTES
      */
     public int put(InputStream input, URI uri, DocumentFormat format) throws IOException{
         if (uri == null || uri.toString().isEmpty() || format == null){
@@ -135,6 +135,7 @@ public class DocumentStoreImpl implements DocumentStore {
     }
 
     private int add(URI uri, Document document){
+        this.checkLimits(document);
 
         if (docHashTable.containsKey(uri)){
             this.removeDocumentWordsFromTrie(this.docHashTable.get(uri));
@@ -149,6 +150,24 @@ public class DocumentStoreImpl implements DocumentStore {
         this.docHeapInsert(document);
         this.undoSetDocumentLogic(uri);
         return 0;
+    }
+
+    private void checkLimits(Document doc){
+        boolean typeText = doc.getDocumentTxt() != null;
+        if (typeText){
+            if (this.memoryLimit != 0 && this.getTotalMemory() + doc.getDocumentTxt().getBytes().length > this.memoryLimit){
+                throw new IllegalArgumentException();
+            }
+        }
+        else{
+            if (this.memoryLimit != 0 && this.getTotalMemory() + doc.getDocumentBinaryData().length > this.memoryLimit){
+                throw new IllegalArgumentException();
+            }
+        }
+        if (this.docLimit != 0 && this.docHashTable.size() == this.docLimit){
+            throw new IllegalArgumentException();
+        }
+
     }
 
     private void addDocumentWordsToTrie(Document document){
@@ -520,7 +539,7 @@ public class DocumentStoreImpl implements DocumentStore {
     }
 
     private void docHeapInsert(Document document){
-        this.docHeap.insert(document);  //add document to the heap
+        this.docHeap.insert(document);
 
         //while the doc limit or memory limit is violated, remove documents from the heap, trie, hashtable, and undoStack
         while((docLimit != 0 && this.docLimit < this.docHashTable.size()) || (this.memoryLimit != 0 && this.memoryLimit< this.getTotalMemory())){

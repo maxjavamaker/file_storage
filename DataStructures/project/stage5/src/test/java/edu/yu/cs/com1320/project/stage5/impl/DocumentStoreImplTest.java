@@ -1134,5 +1134,21 @@ class DocumentStoreImplTest {
 
         }
     }*/
+
+    @Test
+    public void addingViolatesMemoryLimit(){
+        try {
+            this.documentStore.setMaxDocumentBytes(9);
+            this.documentStore.put(inputStream1, uri1, DocumentStore.DocumentFormat.TXT);
+            assertThrows(IllegalArgumentException.class, () -> {
+                this.documentStore.put(inputStream2, uri2, DocumentStore.DocumentFormat.TXT);});
+            this.documentStore.setMaxDocumentCount(2);
+            assertThrows(IllegalArgumentException.class, () -> {
+                this.documentStore.put(inputStream2, uri2, DocumentStore.DocumentFormat.TXT);});
+        }
+        catch(IOException e){
+
+        }
+    }
 }
 
