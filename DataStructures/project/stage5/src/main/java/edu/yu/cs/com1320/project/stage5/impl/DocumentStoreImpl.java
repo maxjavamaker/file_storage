@@ -135,7 +135,7 @@ public class DocumentStoreImpl implements DocumentStore {
     }
 
     private int add(URI uri, Document document){
-        this.checkLimits(document);
+        this.docExceedsLimit(document);
 
         if (docHashTable.containsKey(uri)){
             this.removeDocumentWordsFromTrie(this.docHashTable.get(uri));
@@ -152,22 +152,18 @@ public class DocumentStoreImpl implements DocumentStore {
         return 0;
     }
 
-    private void checkLimits(Document doc){
+    private void docExceedsLimit(Document doc){
         boolean typeText = doc.getDocumentTxt() != null;
         if (typeText){
-            if (this.memoryLimit != 0 && this.getTotalMemory() + doc.getDocumentTxt().getBytes().length > this.memoryLimit){
+            if (this.memoryLimit != 0 && doc.getDocumentTxt().getBytes().length > this.memoryLimit){
                 throw new IllegalArgumentException();
             }
         }
         else{
-            if (this.memoryLimit != 0 && this.getTotalMemory() + doc.getDocumentBinaryData().length > this.memoryLimit){
+            if (this.memoryLimit != 0 && doc.getDocumentBinaryData().length > this.memoryLimit){
                 throw new IllegalArgumentException();
             }
         }
-        if (this.docLimit != 0 && this.docHashTable.size() == this.docLimit){
-            throw new IllegalArgumentException();
-        }
-
     }
 
     private void addDocumentWordsToTrie(Document document){
@@ -264,6 +260,22 @@ public class DocumentStoreImpl implements DocumentStore {
         return undidAction;
     }
 
+    private void checkDocumentMemory(Document doc){
+        if (this.memoryLimit == 0){
+            return;
+        }
+        if (doc.getDocumentTxt() == null){  //this means its a txt document
+            if ((doc.getDocumentBinaryData().length > this.memoryLimit)){
+                throw new IllegalArgumentException();
+            }
+        }
+        else{
+            if (doc.getDocumentTxt().getBytes().length > this.memoryLimit){
+                throw new IllegalArgumentException();
+            }
+        }
+    }
+
     private void undoSetMetaDataLogic(Document document, String key){
         if (this.getMetadata(document.getKey(), key) != null) {  //check if the metadata previously existed
             String previousValue = document.getMetadataValue(key);
@@ -297,6 +309,7 @@ public class DocumentStoreImpl implements DocumentStore {
     private void undoDeleteLogic(URI url){  //same logic for changing a document
         Document previousDocument = docHashTable.get(url);
         Consumer<URI> consumer = restoreDocument -> {
+            this.checkDocumentMemory(previousDocument);  //make sure the document memory isn't higher than the limit
             docHashTable.put(url, previousDocument);
             this.addDocumentWordsToTrie(this.docHashTable.get(url));
             this.docHashTable.get(url).setLastUseTime(System.nanoTime());
@@ -488,6 +501,7 @@ public class DocumentStoreImpl implements DocumentStore {
             }
 
             Consumer<URI> consumer = documentPut -> {  //undo logic
+                this.checkDocumentMemory(document);  //if document is higher than memory limit throw exception
                 for (String word : document.getWords()) {
                     this.docTrie.put(word, document);
                 }

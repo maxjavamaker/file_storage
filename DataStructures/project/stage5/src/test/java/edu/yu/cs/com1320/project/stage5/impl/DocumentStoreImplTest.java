@@ -1138,15 +1138,55 @@ class DocumentStoreImplTest {
     @Test
     public void addingViolatesMemoryLimit(){
         try {
-            this.documentStore.setMaxDocumentBytes(9);
-            this.documentStore.put(inputStream1, uri1, DocumentStore.DocumentFormat.TXT);
+            InputStream inputStream3 = new ByteArrayInputStream("howdydoyoudo".getBytes());
+
+            this.documentStore.setMaxDocumentBytes(6);
+            this.documentStore.put(inputStream2, uri2, DocumentStore.DocumentFormat.TXT);
+
+
             assertThrows(IllegalArgumentException.class, () -> {
-                this.documentStore.put(inputStream2, uri2, DocumentStore.DocumentFormat.TXT);});
-            this.documentStore.setMaxDocumentCount(2);
-            assertThrows(IllegalArgumentException.class, () -> {
-                this.documentStore.put(inputStream2, uri2, DocumentStore.DocumentFormat.TXT);});
+                this.documentStore.put(inputStream3, uri2, DocumentStore.DocumentFormat.TXT);
+            });
+        } catch(IOException e){
+
         }
-        catch(IOException e){
+    }
+
+    @Test
+    public void undoingOverMemoryLimit(){
+        try {
+            InputStream inputStream3 = new ByteArrayInputStream("howdydoyoudo".getBytes());
+
+            this.documentStore.put(inputStream3, uri2, DocumentStore.DocumentFormat.TXT);
+            this.documentStore.delete(uri2);
+
+            this.documentStore.setMaxDocumentBytes(6);
+            this.documentStore.put(inputStream1, uri1, DocumentStore.DocumentFormat.TXT);
+            this.documentStore.delete(uri1);
+            this.documentStore.undo();
+            assertThrows(IllegalArgumentException.class, () -> {
+                this.documentStore.undo(uri2);
+            });
+        } catch(IOException e){
+
+        }
+    }
+
+    @Test
+    public void undoCommandSetOverMemoryLimit(){
+        try {
+            InputStream inputStream3 = new ByteArrayInputStream("textd".getBytes());
+
+            this.documentStore.put(inputStream3, uri2, DocumentStore.DocumentFormat.TXT);
+            this.documentStore.put(inputStream1, uri1, DocumentStore.DocumentFormat.TXT);
+            this.documentStore.deleteAllWithPrefix("text");
+            this.documentStore.setMaxDocumentBytes(6);
+
+            this.documentStore.undo();
+            assert(this.documentStore.get(uri3) == null);
+            assert(this.documentStore.get(uri1) != null);
+
+        } catch(IOException e){
 
         }
     }
