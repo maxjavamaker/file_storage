@@ -314,6 +314,7 @@ public class DocumentStoreImpl implements DocumentStore {
             this.addDocumentWordsToTrie(this.docHashTable.get(url));
             this.docHashTable.get(url).setLastUseTime(System.nanoTime());
             this.docHeap.insert(this.docHashTable.get(url));
+            this.complyWithLimits();
         };
         undoStack.push(new GenericCommand<>(url, consumer));
     }
@@ -509,6 +510,7 @@ public class DocumentStoreImpl implements DocumentStore {
                 this.docHeap.insert(document);
                 document.setLastUseTime(time);
                 this.docHeap.reHeapify(document);
+                this.complyWithLimits();
             };
 
             uriSet.add(document.getKey());  //add uri to the set

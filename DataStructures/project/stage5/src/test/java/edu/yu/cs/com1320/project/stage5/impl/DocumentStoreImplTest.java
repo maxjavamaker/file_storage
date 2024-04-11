@@ -1175,16 +1175,53 @@ class DocumentStoreImplTest {
     @Test
     public void undoCommandSetOverMemoryLimit(){
         try {
-            InputStream inputStream3 = new ByteArrayInputStream("textd".getBytes());
 
-            this.documentStore.put(inputStream3, uri2, DocumentStore.DocumentFormat.TXT);
-            this.documentStore.put(inputStream1, uri1, DocumentStore.DocumentFormat.TXT);
+            this.documentStore.put(inputStream1, uri2, DocumentStore.DocumentFormat.TXT);
+            this.documentStore.put(inputStream2, uri1, DocumentStore.DocumentFormat.TXT);
             this.documentStore.deleteAllWithPrefix("text");
             this.documentStore.setMaxDocumentBytes(6);
 
             this.documentStore.undo();
-            assert(this.documentStore.get(uri3) == null);
+            assert(this.documentStore.get(uri1) == null);
+            assert(this.documentStore.get(uri2) != null);
+
+        } catch(IOException e){
+
+        }
+    }
+
+    @Test
+    public void undoKicksOutDoc(){
+        try {
+            URI uri4 = new URI("uri4");
+            InputStream inputStream3 = new ByteArrayInputStream("holy".getBytes());
+
+            this.documentStore.put(inputStream1, uri1, DocumentStore.DocumentFormat.TXT);
+            this.documentStore.put(inputStream3, uri4, DocumentStore.DocumentFormat.TXT);
+
+            this.documentStore.deleteAllWithPrefix("text");
+            this.documentStore.setMaxDocumentBytes(6);
+            this.documentStore.undo(uri1);
             assert(this.documentStore.get(uri1) != null);
+            assert(this.documentStore.get(uri4) == null);
+
+        } catch(IOException | URISyntaxException e){
+
+        }
+    }
+
+    @Test
+    public void undoDeleteViolatesLimits(){
+        try {
+            this.documentStore.put(inputStream1, uri1, DocumentStore.DocumentFormat.TXT);
+            this.documentStore.put(inputStream2, uri2, DocumentStore.DocumentFormat.TXT);
+
+            this.documentStore.delete(uri1);
+            this.documentStore.setMaxDocumentBytes(6);
+            this.documentStore.undo();
+            assert(this.documentStore.get(uri1) != null);
+            assert(this.documentStore.get(uri2) == null);
+
 
         } catch(IOException e){
 
