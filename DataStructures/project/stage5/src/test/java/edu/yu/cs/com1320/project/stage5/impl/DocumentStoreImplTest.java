@@ -1227,5 +1227,56 @@ class DocumentStoreImplTest {
 
         }
     }
+
+    @Test
+    public void stage5TestMaxDocBytesViaSearch(){
+        try {
+            this.documentStore.put(inputStream1, uri1, DocumentStore.DocumentFormat.TXT);
+            this.documentStore.put(inputStream2, uri2, DocumentStore.DocumentFormat.TXT);
+            this.documentStore.setMaxDocumentBytes(6);
+            assert(this.documentStore.get(uri1) == null);
+            assert(this.documentStore.get(uri2) != null);
+
+
+
+        } catch(IOException e){
+
+        }
+    }
+
+    @Test
+    public void stage5TestUndoAfterMaxBytes(){
+        try {
+            this.documentStore.put(inputStream1, uri1, DocumentStore.DocumentFormat.TXT);
+            this.documentStore.put(inputStream2, uri2, DocumentStore.DocumentFormat.TXT);
+
+            this.documentStore.setMetadata(uri1, "key", "value");
+            this.documentStore.search("text2");
+            this.documentStore.setMaxDocumentBytes(6);
+            assert(this.documentStore.get(uri1) == null);
+            assert(this.documentStore.search("text1").isEmpty());
+        } catch(IOException e){
+
+        }
+    }
+
+    @Test
+    public void stage5TestMaxDocCountViaMetadataSearch(){
+        try {
+            Map<String, String> metadata = new HashMap<>();
+            metadata.put("key", "value");
+            this.documentStore.put(inputStream1, uri1, DocumentStore.DocumentFormat.TXT);
+            this.documentStore.put(inputStream2, uri2, DocumentStore.DocumentFormat.TXT);
+            this.documentStore.setMetadata(uri1, "key", "value");
+            this.documentStore.searchByMetadata(metadata);
+            this.documentStore.setMaxDocumentCount(1);
+            assert(this.documentStore.get(uri1) != null);
+            assert(this.documentStore.get(uri2) == null);
+
+
+        } catch(IOException e){
+
+        }
+    }
 }
 
