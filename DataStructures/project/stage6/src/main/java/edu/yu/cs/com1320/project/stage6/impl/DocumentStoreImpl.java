@@ -1,12 +1,12 @@
-package edu.yu.cs.com1320.project.stage5.impl;
+package edu.yu.cs.com1320.project.stage6.impl;
 
 import edu.yu.cs.com1320.project.HashTable;
 import edu.yu.cs.com1320.project.Stack;
 import edu.yu.cs.com1320.project.impl.HashTableImpl;
 import edu.yu.cs.com1320.project.impl.StackImpl;
 import edu.yu.cs.com1320.project.impl.TrieImpl;
-import edu.yu.cs.com1320.project.stage5.Document;
-import edu.yu.cs.com1320.project.stage5.DocumentStore;
+import edu.yu.cs.com1320.project.stage6.Document;
+import edu.yu.cs.com1320.project.stage6.DocumentStore;
 import edu.yu.cs.com1320.project.undo.CommandSet;
 import edu.yu.cs.com1320.project.undo.GenericCommand;
 import edu.yu.cs.com1320.project.undo.Undoable;
