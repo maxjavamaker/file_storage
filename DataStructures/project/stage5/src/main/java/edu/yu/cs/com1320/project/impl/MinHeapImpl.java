@@ -11,16 +11,13 @@ public class MinHeapImpl<E extends Comparable<E>> extends MinHeap<E> {
 
     @Override
     public void reHeapify(E element) {
-        try {
-            int k = this.getArrayIndex(element);
-            if (k != 1 && !this.isGreater(k, k / 2)) {  //if it is not more recent than its parent upHeap
-                this.upHeap(k);
-            } else if (this.elements.length > 2 * k && this.elements[2 * k] != null && this.isGreater(k, 2 * k)) {  //if k is more recent than its kids downHeap
-                this.downHeap(k);
-            }
-        }catch(NoSuchElementException e){
-        }
+        int k = this.getArrayIndex(element);
+        if (k != 1 && !this.isGreater(k, k / 2)) {  //if it is not more recent than its parent upHeap
+            this.upHeap(k);
 
+        } else if (this.elements.length >= 2 * k && this.elements[2 * k] != null && this.isGreater(k, 2 * k)) {  //if k is more recent than its kids downHeap
+            this.downHeap(k);
+        }
     }
 
     @Override

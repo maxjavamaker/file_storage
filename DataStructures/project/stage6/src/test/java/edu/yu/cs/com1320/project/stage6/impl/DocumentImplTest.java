@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 
 public class DocumentImplTest {
 
@@ -187,6 +188,25 @@ public class DocumentImplTest {
         assert(document.getLastUseTime() == 100);
         document.setLastUseTime(200);
         assert(document.getLastUseTime() == 200);
+    }
+
+    @Test
+    public void setMetadata(){
+        Document document = new DocumentImpl(uri, text);
+        document.setMetadataValue("key1", "value1");
+        document.setMetadataValue("key2", "value2");
+        assert(document.getMetadata().get("key1").equals("value1"));
+        assert(document.getMetadata().get("key2").equals("value2"));
+    }
+
+    @Test
+    public void getWordMap(){
+        String customText = "Doctor, Doctor how are you doing Doctor?";
+        Document document = new DocumentImpl(uri, customText);
+        HashMap<String, Integer> words = document.getWordMap();
+        assert(words.get("Doctor") == 3);
+        assert(words.get("how") == 1);
+        assert(words.get("them") == 0);
     }
 
     @Test

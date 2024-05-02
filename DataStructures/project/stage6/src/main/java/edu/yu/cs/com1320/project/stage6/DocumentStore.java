@@ -26,7 +26,7 @@ public interface DocumentStore
      * @return the old value, or null if there was no previous value
      * @throws IllegalArgumentException if the uri is null or blank, if there is no document stored at that uri, or if the key is null or blank
      */
-    String setMetadata(URI uri, String key, String value);
+    String setMetadata(URI uri, String key, String value) throws IOException;
 
     /**
      * get the value corresponding to the given metadata key for the document at the given uri
@@ -35,22 +35,22 @@ public interface DocumentStore
      * @return the value, or null if there was no value
      * @throws IllegalArgumentException if the uri is null or blank, if there is no document stored at that uri, or if the key is null or blank
      */
-    String getMetadata(URI uri, String key);
+    String getMetadata(URI uri, String key) throws IOException;
     /**
      * @param input the document being put
      * @param url unique identifier for the document
      * @param format indicates which type of document format is being passed
      * @return if there is no previous doc at the given URI, return 0. If there is a previous doc, return the hashCode of the previous doc. If InputStream is null, this is a delete, and thus return either the hashCode of the deleted doc or 0 if there is no doc to delete.
      * @throws IOException if there is an issue reading input
-     * @throws IllegalArgumentException if url or format are null, OR IF THE MEMORY FOOTPRINT OF THE DOCUMENT IS > MAX DOCUMENT BYTES
+     * @throws IllegalArgumentException if url or format are null
      */
-    int put(InputStream input, URI url, DocumentFormat format)  throws IOException;
+    int put(InputStream input, URI url, DocumentStore.DocumentFormat format) throws IOException;
 
     /**
      * @param url the unique identifier of the document to get
      * @return the given document
      */
-    Document get(URI url);
+    Document get(URI url) throws IOException;
 
     /**
      * @param url the unique identifier of the document to delete
@@ -82,7 +82,7 @@ public interface DocumentStore
      * @param keyword
      * @return a List of the matches. If there are no matches, return an empty list.
      */
-    List<Document> search(String keyword);
+    List<Document> search(String keyword) throws IOException;
 
     /**
      * Retrieve all documents containing a word that starts with the given prefix
@@ -91,7 +91,7 @@ public interface DocumentStore
      * @param keywordPrefix
      * @return a List of the matches. If there are no matches, return an empty list.
      */
-    List<Document> searchByPrefix(String keywordPrefix);
+    List<Document> searchByPrefix(String keywordPrefix) throws IOException;
 
     /**
      * Completely remove any trace of any document which contains the given keyword
@@ -113,7 +113,7 @@ public interface DocumentStore
      * @param keysValues metadata key-value pairs to search for
      * @return a List of all documents whose metadata contains ALL OF the given values for the given keys. If no documents contain all the given key-value pairs, return an empty list.
      */
-    List<Document> searchByMetadata(Map<String,String> keysValues);
+    List<Document> searchByMetadata(Map<String,String> keysValues) throws IOException;
 
     /**
      * Retrieve all documents whose text contains the given keyword AND which has the given key-value pairs in its metadata
@@ -123,7 +123,7 @@ public interface DocumentStore
      * @param keysValues
      * @return a List of the matches. If there are no matches, return an empty list.
      */
-    List<Document> searchByKeywordAndMetadata(String keyword, Map<String,String> keysValues);
+    List<Document> searchByKeywordAndMetadata(String keyword, Map<String,String> keysValues) throws IOException;
 
     /**
      * Retrieve all documents that contain text which starts with the given prefix AND which has the given key-value pairs in its metadata
@@ -132,14 +132,14 @@ public interface DocumentStore
      * @param keywordPrefix
      * @return a List of the matches. If there are no matches, return an empty list.
      */
-    List<Document> searchByPrefixAndMetadata(String keywordPrefix, Map<String,String> keysValues);
+    List<Document> searchByPrefixAndMetadata(String keywordPrefix, Map<String,String> keysValues) throws IOException;
 
     /**
      * Completely remove any trace of any document which has the given key-value pairs in its metadata
      * Search is CASE SENSITIVE.
      * @return a Set of URIs of the documents that were deleted.
      */
-    Set<URI> deleteAllWithMetadata(Map<String,String> keysValues);
+    Set<URI> deleteAllWithMetadata(Map<String,String> keysValues) throws IOException;
 
     /**
      * Completely remove any trace of any document which contains the given keyword AND which has the given key-value pairs in its metadata
@@ -147,15 +147,14 @@ public interface DocumentStore
      * @param keyword
      * @return a Set of URIs of the documents that were deleted.
      */
-    Set<URI> deleteAllWithKeywordAndMetadata(String keyword,Map<String,String> keysValues);
-
+    Set<URI> deleteAllWithKeywordAndMetadata(String keyword,Map<String,String> keysValues) throws IOException;
     /**
      * Completely remove any trace of any document which contains a word that has the given prefix AND which has the given key-value pairs in its metadata
      * Search is CASE SENSITIVE.
      * @param keywordPrefix
      * @return a Set of URIs of the documents that were deleted.
      */
-    Set<URI> deleteAllWithPrefixAndMetadata(String keywordPrefix,Map<String,String> keysValues);
+    Set<URI> deleteAllWithPrefixAndMetadata(String keywordPrefix,Map<String,String> keysValues) throws IOException;
 
     //**********STAGE 5 ADDITIONS
 

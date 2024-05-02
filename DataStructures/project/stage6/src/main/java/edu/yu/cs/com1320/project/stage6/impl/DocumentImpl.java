@@ -1,12 +1,11 @@
 package edu.yu.cs.com1320.project.stage6.impl;
 
-import edu.yu.cs.com1320.project.HashTable;
-import edu.yu.cs.com1320.project.impl.HashTableImpl;
 import edu.yu.cs.com1320.project.stage6.Document;
 
 import java.net.URI;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 
@@ -16,8 +15,8 @@ public class DocumentImpl implements Document {
     private final URI uri;
     private byte[] binaryData;
     private long lastUseTime;
-    private final HashTable<String, String> metadata = new HashTableImpl<>();
-    private final HashMap<String, Integer> words = new HashMap<>();
+    private Map<String, String> metadata = new HashMap<>();
+    private Map<String, Integer> words = new HashMap<>();
 
     public DocumentImpl(URI uri, String txt) {
         if (uri == null || txt == null || uri.toString().isEmpty() || txt.isEmpty()) {
@@ -28,7 +27,7 @@ public class DocumentImpl implements Document {
         this.text = txt;
         this.isBinary = false;
         this.lastUseTime = System.nanoTime();
-        this.addWordsToMap(txt); //add every word to a hashmap
+        this.addWordsToMap(txt); //add text to the words hashmap
     }
 
     public DocumentImpl(URI uri, byte[] binaryData) {
@@ -41,6 +40,15 @@ public class DocumentImpl implements Document {
         this.isBinary = true;
         this.lastUseTime = System.nanoTime();
     }
+
+    public DocumentImpl(URI uri, String text, Map<String, Integer> wordCountMap){
+        this.uri = uri;
+        this.text = text;
+        this.isBinary = false;
+        this.lastUseTime = System.nanoTime();
+        this.words = wordCountMap;
+    }
+
 
     /**
      * @param key   key of document metadata to store a value for
@@ -73,17 +81,17 @@ public class DocumentImpl implements Document {
     /**
      * @return a COPY of the metadata saved in this document
      */
-    public HashTable<String, String> getMetadata() {
-        HashTable<String, String> copy = new HashTableImpl<>(); //create a copy of the hashtable holding all the metadata
-        String key;
-        String value;
-        for (String keys : metadata.keySet()){  //add all the metadata to the copy
-            key = keys;
-            value = metadata.get(keys);
-            copy.put(key, value);
+    public HashMap<String, String> getMetadata() {
+        HashMap<String, String> metadataCopy = new HashMap<>(); //create a copy of the hashtable holding all the metadata
+        for (String key : metadata.keySet()){  //add all the metadata to the copy
+            metadataCopy.put(key, metadata.get(key));
         }
 
-        return copy;
+        return metadataCopy;
+    }
+
+    public void setMetadata(HashMap<String, String> metadata){
+        this.metadata = metadata;
     }
 
     /**
@@ -146,6 +154,45 @@ public class DocumentImpl implements Document {
         }
     }
 
+    /**
+     * return the last time this document was used, via put/get or via a search result
+     * (for stage 4 of project)
+     */
+
+    public long getLastUseTime(){
+        return this.lastUseTime;
+    }
+
+    public void setLastUseTime(long timeInNanoseconds){
+        this.lastUseTime = timeInNanoseconds;
+    }
+
+    public HashMap<String, Integer> getWordMap(){
+        return (HashMap) this.words;
+    }
+
+    /**
+     * This must set the word to count map during deserialization
+     *
+     * @param wordMap;
+     */
+    public void setWordMap(HashMap<String, Integer> wordMap){
+        this.words = wordMap;
+    }
+
+    @Override
+    public int compareTo(Document other) {
+        if (this.getLastUseTime() == other.getLastUseTime()){
+            return 0;
+        }
+        else if (this.getLastUseTime() > other.getLastUseTime()){  //the less the last use time is, the longer the document has been untouched for
+            return 1;
+        }
+        else{
+            return -1;
+        }
+    }
+
     @Override
     public int hashCode() {
         int result = uri.hashCode();
@@ -162,28 +209,4 @@ public class DocumentImpl implements Document {
         return this.hashCode() == s.hashCode();
     }
 
-    /**
-     * return the last time this document was used, via put/get or via a search result
-     * (for stage 4 of project)
-     */
-    public long getLastUseTime(){
-        return this.lastUseTime;
-    }
-
-    public void setLastUseTime(long timeInNanoseconds){
-        this.lastUseTime = timeInNanoseconds;
-    }
-
-    @Override
-    public int compareTo(Document other) {
-        if (this.getLastUseTime() == other.getLastUseTime()){
-            return 0;
-        }
-        else if (this.getLastUseTime() > other.getLastUseTime()){  //the less the last use time is, the longer the document has been untouched for
-            return 1;
-        }
-        else{
-            return -1;
-        }
-    }
 }

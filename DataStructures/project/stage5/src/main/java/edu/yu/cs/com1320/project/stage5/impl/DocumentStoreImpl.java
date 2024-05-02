@@ -495,7 +495,6 @@ public class DocumentStoreImpl implements DocumentStore {
 
         CommandSet<URI> commandSet = new CommandSet<>();
         GenericCommand<URI> genericCommand;
-        long time = System.nanoTime();
         for (Document document : docs){  //cycle through every document
             for (String word : document.getWords()) {  //cycle through every word in the document
                 this.docTrie.delete(word, document);  //delete the document at the word
@@ -507,9 +506,8 @@ public class DocumentStoreImpl implements DocumentStore {
                     this.docTrie.put(word, document);
                 }
                 this.docHashTable.put(document.getKey(), document);
+                document.setLastUseTime(System.nanoTime());
                 this.docHeap.insert(document);
-                document.setLastUseTime(time);
-                this.docHeap.reHeapify(document);
                 this.complyWithLimits();
             };
 
@@ -558,10 +556,8 @@ public class DocumentStoreImpl implements DocumentStore {
         this.docHeap.insert(document);
 
         //while the doc limit or memory limit is violated, remove documents from the heap, trie, hashtable, and undoStack
-        while((docLimit != 0 && this.docLimit < this.docHashTable.size()) || (this.memoryLimit != 0 && this.memoryLimit< this.getTotalMemory())){
-            this.delete(this.docHeap.peek().getKey());
-            this.docHeap.remove();
-            this.deleteDocumentFromStack(document.getKey());
+        while((docLimit != 0 && this.docLimit < this.docHashTable.size()) || (this.memoryLimit != 0 && this.memoryLimit < this.getTotalMemory())){
+            this.eraseLeastUsedDoc(this.docHeap.peek());
         }
     }
 

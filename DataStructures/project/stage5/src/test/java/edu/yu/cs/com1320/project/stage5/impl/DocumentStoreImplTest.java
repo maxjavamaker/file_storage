@@ -1180,14 +1180,15 @@ class DocumentStoreImplTest {
     public void undoCommandSetOverMemoryLimit(){
         try {
 
-            this.documentStore.put(inputStream1, uri2, DocumentStore.DocumentFormat.TXT);
-            this.documentStore.put(inputStream2, uri1, DocumentStore.DocumentFormat.TXT);
-            this.documentStore.deleteAllWithPrefix("text");
+            this.documentStore.put(inputStream1, uri1, DocumentStore.DocumentFormat.TXT);
+            this.documentStore.put(inputStream2, uri2, DocumentStore.DocumentFormat.TXT);
+            this.documentStore.deleteAllWithPrefix("text1");
             this.documentStore.setMaxDocumentBytes(6);
 
             this.documentStore.undo();
-            assert(this.documentStore.get(uri1) == null);
-            assert(this.documentStore.get(uri2) != null);
+
+            assert(this.documentStore.get(uri1) != null);
+            assert(this.documentStore.get(uri2) == null);
 
         } catch(IOException e){
 
@@ -1302,15 +1303,29 @@ class DocumentStoreImplTest {
             assertNotNull(this.documentStore.get(uri5));
             assertNull(this.documentStore.get(uri1));
 
+            this.documentStore.undo();
 
-
-
-
-
+            assertNotNull(this.documentStore.get(uri2));
+            assertNotNull(this.documentStore.get(uri4));
+            assertNull(this.documentStore.get(uri5));
+            assertNull(this.documentStore.get(uri1));
 
         } catch(IOException e){
 
         }
+    }
+
+    @Test
+    public void deleteUndos(){
+        try {
+            this.documentStore.put(inputStream1, uri1, DocumentStore.DocumentFormat.TXT);
+            this.documentStore.setMetadata(uri1, "key", "value");
+            this.documentStore.put(inputStream2, uri2, DocumentStore.DocumentFormat.TXT);
+            this.documentStore.setMaxDocumentCount(1);
+        } catch(IOException e){
+
+        }
+
     }
 }
 

@@ -1,7 +1,5 @@
 package edu.yu.cs.com1320.project.stage6.impl;
 
-import edu.yu.cs.com1320.project.HashTable;
-import edu.yu.cs.com1320.project.impl.HashTableImpl;
 import edu.yu.cs.com1320.project.stage6.Document;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

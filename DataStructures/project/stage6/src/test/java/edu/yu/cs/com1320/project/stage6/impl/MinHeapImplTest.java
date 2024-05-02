@@ -1,19 +1,8 @@
 package edu.yu.cs.com1320.project.stage6.impl;
 
-import edu.yu.cs.com1320.project.HashTable;
-import edu.yu.cs.com1320.project.impl.HashTableImpl;
 import edu.yu.cs.com1320.project.impl.MinHeapImpl;
-import edu.yu.cs.com1320.project.stage6.Document;
 import edu.yu.cs.com1320.project.MinHeap;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import java.util.NoSuchElementException;
-
-
-import java.net.URI;
-import java.net.URISyntaxException;
-
-import static org.junit.jupiter.api.Assertions.*;
 
 public class MinHeapImplTest {
     MinHeap<Integer> docHeap;
