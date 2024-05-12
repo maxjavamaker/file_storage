@@ -18,18 +18,6 @@ public class DocumentImpl implements Document {
     private Map<String, String> metadata = new HashMap<>();
     private Map<String, Integer> words = new HashMap<>();
 
-    public DocumentImpl(URI uri, String txt) {
-        if (uri == null || txt == null || uri.toString().isEmpty() || txt.isEmpty()) {
-            throw new IllegalArgumentException();
-        }
-
-        this.uri = uri;
-        this.text = txt;
-        this.isBinary = false;
-        this.lastUseTime = System.nanoTime();
-        this.addWordsToMap(txt); //add text to the words hashmap
-    }
-
     public DocumentImpl(URI uri, byte[] binaryData) {
         if (uri == null || binaryData == null || uri.toString().isEmpty() || binaryData.length == 0) {
             throw new IllegalArgumentException();
@@ -46,7 +34,13 @@ public class DocumentImpl implements Document {
         this.text = text;
         this.isBinary = false;
         this.lastUseTime = System.nanoTime();
-        this.words = wordCountMap;
+
+        if (wordCountMap == null){
+            this.addWordsToMap(text);
+        }
+        else{
+            this.words = wordCountMap;
+        }
     }
 
 

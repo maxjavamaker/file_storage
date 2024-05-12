@@ -139,6 +139,7 @@ public class DocumentStoreImpl implements DocumentStore {
 
         if (docHashTable.containsKey(uri)){
             this.removeDocumentWordsFromTrie(this.docHashTable.get(uri));
+            this.deleteDocFromHeap(docHashTable.get(uri));
             this.undoDeleteLogic(uri);  //logic to undo changing document is the same as the logic for undoing delete
 
             int hashCode = docHashTable.put(uri, document).hashCode();
@@ -331,7 +332,16 @@ public class DocumentStoreImpl implements DocumentStore {
             throw new IllegalArgumentException();
         }
 
-        return this.updateDoc(docTrie.getSorted(keyword, createComparator(keyword)));  //create comparator and pass it to tries' get sorted method, update all the docs nanoTime
+        return this.searchWithoutUpdating(keyword, true);
+    }
+
+    private List<Document> searchWithoutUpdating(String keyword, boolean updateDocument){
+        if (updateDocument){
+            return this.updateDoc(docTrie.getSorted(keyword, createComparator(keyword)));
+        }
+        else{
+            return docTrie.getSorted(keyword, createComparator(keyword));
+        }
     }
 
     private Comparator<Document> createComparator(String keyword){
@@ -391,23 +401,7 @@ public class DocumentStoreImpl implements DocumentStore {
      * @return a List of all documents whose metadata contains all the given values for the given keys. If no documents contain all the given key-value pairs, return an empty list.
      */
     public List<Document> searchByMetadata(Map<String,String> keysValues){
-        List<Document>  docList = new ArrayList<>();
-
-        for (Document doc : this.docHashTable.values()){  //check each document in the hashtable to see if its metadata matches the keysValues map
-            boolean addToList = true;
-            for (String key : keysValues.keySet()){
-                if (doc.getMetadata().get(key) == null || !doc.getMetadata().get(key).equals(keysValues.get(key))){
-                    addToList = false;
-                    break;
-                }
-            }
-
-            if (addToList){  //if the metadata matches add the doc to the arrayList
-                docList.add(doc);
-            }
-        }
-
-        return this.updateDoc(docList);
+        return searchByMetadataWithoutUpdating(keysValues, true);
     }
 
     /**
@@ -419,8 +413,8 @@ public class DocumentStoreImpl implements DocumentStore {
      * @return a List of the matches. If there are no matches, return an empty list.
      */
     public List<Document> searchByKeywordAndMetadata(String keyword, Map<String,String> keysValues){
-        List<Document> metadataDocList = this.searchByMetadata(keysValues);  //List of documents with matching metadata
-        List<Document> keywordDocList = this.search(keyword);  //List of documents with the keyword sorted by number of occurrences
+        List<Document> metadataDocList = searchByMetadataWithoutUpdating(keysValues, false);  //List of documents with matching metadata
+        List<Document> keywordDocList = searchWithoutUpdating(keyword, false);  //List of documents with the keyword sorted by number of occurrences
         List<Document> finalList = new ArrayList<>();
 
         for (Document doc : metadataDocList){  //if a doc has the keyword and metadata add to the finalList
@@ -440,8 +434,8 @@ public class DocumentStoreImpl implements DocumentStore {
      * @return a List of the matches. If there are no matches, return an empty list.
      */
     public List<Document> searchByPrefixAndMetadata(String keywordPrefix,Map<String,String> keysValues){
-        List<Document> metadataDocList = this.searchByMetadata(keysValues);  //List of documents with matching metadata
-        List<Document> keywordDocList = this.searchByPrefix(keywordPrefix);  //List of documents with the Prefix sorted by number of occurrences
+        List<Document> metadataDocList = searchByMetadataWithoutUpdating(keysValues, false);  //List of documents with matching metadata
+        List<Document> keywordDocList = searchByPrefixWithoutUpdating(keywordPrefix, false);  //List of documents with the Prefix sorted by number of occurrences
         List<Document> finalList = new ArrayList<>();
 
         for (Document doc : metadataDocList){  //if a doc has the Prefix and metadata add to the finalList
@@ -453,13 +447,46 @@ public class DocumentStoreImpl implements DocumentStore {
         return this.updateDoc(finalList);
     }
 
+    private List<Document> searchByMetadataWithoutUpdating(Map<String,String> keysValues, boolean updateDocuments){
+        List<Document>  docList = new ArrayList<>();
+
+        for (Document doc : this.docHashTable.values()){  //check each document in the hashtable to see if its metadata matches the keysValues map
+            boolean addToList = true;
+            for (String key : keysValues.keySet()){
+                if (doc.getMetadata().get(key) == null || !doc.getMetadata().get(key).equals(keysValues.get(key))){
+                    addToList = false;
+                    break;
+                }
+            }
+
+            if (addToList){  //if the metadata matches add the doc to the arrayList
+                docList.add(doc);
+            }
+        }
+        if (updateDocuments){
+            return updateDoc(docList);
+        }
+        else{
+            return docList;
+        }
+    }
+
+    private List<Document> searchByPrefixWithoutUpdating(String keywordPrefix, boolean updateDocuments){
+        if (updateDocuments) {
+            return updateDoc(docTrie.getAllWithPrefixSorted(keywordPrefix, createPrefixComparator(keywordPrefix))); //create comparator and pass it to tries' getAllWithPrefixSorted method
+        }
+        else{
+            return docTrie.getAllWithPrefixSorted(keywordPrefix, createPrefixComparator(keywordPrefix));
+        }
+    }
+
     /**
      * Completely remove any trace of any document which has the given key-value pairs in its metadata
      * Search is CASE SENSITIVE.
      * @return a Set of URIs of the documents that were deleted.
      */
     public Set<URI> deleteAllWithMetadata(Map<String,String> keysValues){
-        List<Document> docs = this.searchByMetadata(keysValues); //get documents with matching metadata
+        List<Document> docs = searchByMetadataWithoutUpdating(keysValues, false); //get documents with matching metadata
         return this.deleteAndUndoLogic(docs);  //remove all traces of the documents, create undo logic
     }
 
@@ -470,7 +497,7 @@ public class DocumentStoreImpl implements DocumentStore {
      * @return a Set of URIs of the documents that were deleted.
      */
     public Set<URI> deleteAllWithKeywordAndMetadata(String keyword,Map<String,String> keysValues){
-        List<Document>  docs = this.searchByKeywordAndMetadata(keyword, keysValues); //get docs with matching metadata and keyword
+        List<Document>  docs = searchByKeywordAndMetadata(keyword, keysValues); //get docs with matching metadata and keyword
         return this.deleteAndUndoLogic(docs);  //remove all traces of the document, create undo logic
     }
 
@@ -481,7 +508,7 @@ public class DocumentStoreImpl implements DocumentStore {
      * @return a Set of URIs of the documents that were deleted.
      */
     public Set<URI> deleteAllWithPrefixAndMetadata(String keywordPrefix,Map<String,String> keysValues){
-        List<Document> docs = this.searchByPrefixAndMetadata(keywordPrefix, keysValues); //get docs with matching metadata
+        List<Document> docs = searchByPrefixAndMetadata(keywordPrefix, keysValues); //get docs with matching metadata
         return this.deleteAndUndoLogic(docs);  //remove all traces of the document, create undo logic
     }
 

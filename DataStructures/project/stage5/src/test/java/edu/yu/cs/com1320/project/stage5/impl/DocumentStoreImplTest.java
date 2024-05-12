@@ -1327,5 +1327,37 @@ class DocumentStoreImplTest {
         }
 
     }
+
+    @Test
+    public void stage5TestMaxDocCountViaKeywordAndMetadataSearch(){
+        try {
+            this.documentStore.setMaxDocumentCount(3);
+
+            this.documentStore.put(inputStream1, uri1, DocumentStore.DocumentFormat.TXT);
+            this.documentStore.put(inputStream2, uri2, DocumentStore.DocumentFormat.TXT);
+            this.documentStore.put(new ByteArrayInputStream("text4".getBytes()), uri4, DocumentStore.DocumentFormat.TXT);
+
+            assertNotNull(this.documentStore.get(uri1));
+            assertNotNull(this.documentStore.get(uri2));
+            assertNotNull(this.documentStore.get(uri4));
+
+            documentStore.setMetadata(uri1, "k1", "v1");
+
+            HashMap<String, String> metadata = new HashMap<>();
+            metadata.put("key1", "value1");
+
+            this.documentStore.searchByPrefixAndMetadata("text", metadata);
+
+            this.documentStore.put(new ByteArrayInputStream("text5".getBytes()), uri5, DocumentStore.DocumentFormat.TXT);
+
+            assertNotNull(this.documentStore.get(uri1));
+            assertNotNull(this.documentStore.get(uri4));
+            assertNotNull(this.documentStore.get(uri5));
+            assertNull(this.documentStore.get(uri2));
+
+        } catch(IOException e){
+
+        }
+    }
 }
 
