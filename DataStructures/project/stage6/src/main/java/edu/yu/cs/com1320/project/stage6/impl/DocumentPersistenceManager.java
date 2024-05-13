@@ -4,9 +4,11 @@ import com.google.gson.*;
 import com.google.gson.reflect.TypeToken;
 import edu.yu.cs.com1320.project.stage6.Document;
 import edu.yu.cs.com1320.project.stage6.PersistenceManager;
-import javax.xml.bind.DatatypeConverter;
+import jakarta.xml.bind.DatatypeConverter;
+
 
 import java.io.File;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.lang.reflect.Type;
@@ -17,7 +19,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;
 
-public class DocumentPersistenceManager<Key,Value> implements PersistenceManager<Key, Value>{
+public class DocumentPersistenceManager implements PersistenceManager<URI, Document>{
     private final File directory;
 
     public DocumentPersistenceManager(File directory){
@@ -68,12 +70,6 @@ public class DocumentPersistenceManager<Key,Value> implements PersistenceManager
             }
 
             String uriString = jsonObject.get("uri").getAsString();
-            URI uri;
-            try {
-                uri = new URI(uriString);
-            } catch(URISyntaxException e){
-
-            }
 
             Type metadataMapType = new TypeToken<HashMap<String, Integer>>(){}.getType();
             String metadataString = jsonObject.get("metadata").getAsString();
@@ -83,28 +79,35 @@ public class DocumentPersistenceManager<Key,Value> implements PersistenceManager
             String wordMapString = jsonObject.get("wordMap").getAsString();
             HashMap<String, Integer> wordMap = gson.fromJson(wordMapString, wordMapType);
 
-            if (textDocument) {
-                Document document = new DocumentImpl(uri, documentText, wordMap);
-                document.setMetadata(metadata);
-                return document;
-            } else{
-                Document document = new DocumentImpl(uri, documentByte);
-                document.setMetadata(metadata);
-                return document;
+            Document document;
+            try {
+                if (textDocument) {
+                    document = new DocumentImpl(new URI(uriString), documentText, wordMap);
+                    document.setMetadata(metadata);
+                    return document;
+                } else{
+                    document = new DocumentImpl(new URI(uriString), documentByte);
+                    document.setMetadata(metadata);
+                    return document;
+                }
+            } catch(URISyntaxException e){
+                System.out.println("couldn't create URI");
             }
+            return null;
         }
     }
 
-    public void serialize(Key key, Value val) throws IOException{
+    public void serialize(URI key, Document val) throws IOException{
         Document document = (Document) val;
         CustomSerialization customSerialization = new CustomSerialization();
         createJsonFile(key, customSerialization.serialize(document, null, null));
     }
 
-    public Value deserialize(Key key) throws IOException{
+    public Document deserialize(URI key) throws IOException{
         CustomSerialization customSerialization = new CustomSerialization();
-        customSerialization.deserialize(delete(key), null, null);
+        Document document = customSerialization.deserialize(getJsonFile(key), null, null);
         delete(key);
+        return document;
     }
 
     /**
@@ -113,31 +116,33 @@ public class DocumentPersistenceManager<Key,Value> implements PersistenceManager
      * @return true or false to indicate if deletion occurred or not
      * @throws IOException;
      */
-    public boolean delete(Key key) throws IOException{
-        Path path = Paths.get(createFilePath(key));
-        Files.delete(path);
+    public boolean delete(URI key) throws IOException{
+        Path path = Paths.get(getFilePath(key));
+        return Files.deleteIfExists(path);
     }
 
-    private void createJsonFile(Key key, JsonElement json){
-        String filePath = createFilePath(key);
-        File file = new File(filePath);
+    private void createJsonFile(URI key, JsonElement json){
         try{
-            if (!file.exists()){
-                file.createNewFile();
-            }
-            try {
-                Gson gson = new Gson();
-                gson.toJson(json, new FileWriter(filePath));
-            } catch(IOException e){
-                System.out.println("error writing json to file");
-            }
+            String filePath = getFilePath(key);
+            Path directory = Paths.get(filePath);
+            Files.createDirectories(directory);
+
+            Gson gson = new Gson();
+            gson.toJson(json, new FileWriter(filePath));
+
         } catch(IOException e){
             System.out.println("error creating new file");
         }
     }
 
-    private String createFilePath(Key key){
+    private JsonElement getJsonFile(URI key) throws IOException {
+        Gson gson = new Gson();
+        try (FileReader reader = new FileReader(getFilePath(key))) {
+            return gson.fromJson(reader, JsonElement.class);
+        }
+    }
+
+    private String getFilePath(URI key){
         return key.toString().substring(6) + directory + ".json";
     }
 }
-

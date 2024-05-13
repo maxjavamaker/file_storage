@@ -16,7 +16,6 @@ public class BTreeImpl<Key extends Comparable<Key>, Value> implements BTree<Key,
     private int height; //height of the B-tree
     private int n; //number of key-value pairs in the B-tree
     private PersistenceManager<Key, Value> persistenceManager;
-    private final Set<Key> keysInDisk;
 
     //B-tree node data type
     private static final class Node
@@ -83,18 +82,16 @@ public class BTreeImpl<Key extends Comparable<Key>, Value> implements BTree<Key,
     /**
      * Initializes an empty B-tree.
      */
-    public BTreeImpl()
-    {
+    public BTreeImpl() {
         this.root = new Node(0);
-        this.keysInDisk = new HashSet<>();
     }
 
     public void moveToDisk(Key k) throws IOException{
-        if (this.persistenceManager == null){
+        if (persistenceManager == null){
             throw new IllegalStateException("persistence manager was not assigned");
         }
-        this.persistenceManager.serialize(k, this.get(k));
-        this.keysInDisk.add(k);
+        persistenceManager.serialize(k, this.get(k));
+        put(k, null);  //null out the value to symbolize it's in memory
     }
 
     public void setPersistenceManager(PersistenceManager<Key,Value> pm){
@@ -127,13 +124,19 @@ public class BTreeImpl<Key extends Comparable<Key>, Value> implements BTree<Key,
         Entry entry = this.get(this.root, key, this.height);
         if(entry != null)
         {
-            return (Value)entry.val;
+            if(entry.val == null){
+                try {
+                    return put(key, persistenceManager.deserialize(key));  //if entry is null deserialize and bring back into memory
+                }catch(IOException e){
+                    throw new RuntimeException();
+                }
+            }
+            return (Value) entry.val;
         }
         return null;
     }
 
-    private Entry get(Node currentNode, Key key, int height)
-    {
+    private Entry get(Node currentNode, Key key, int height) {
         Entry[] entries = currentNode.entries;
 
         //current node is external (i.e. height == 0)
@@ -143,12 +146,6 @@ public class BTreeImpl<Key extends Comparable<Key>, Value> implements BTree<Key,
             {
                 if(isEqual(key, entries[j].key))
                 {
-                    //found desired key, if the Value is null deserialize. Return its value
-                    if (entries[j].val == null){
-                        this.persistenceManager.deserialize(key);
-                        this.keysInDisk.remove(key);
-                    }
-
                     return entries[j];
                 }
             }
@@ -186,11 +183,6 @@ public class BTreeImpl<Key extends Comparable<Key>, Value> implements BTree<Key,
      * @throws IllegalArgumentException if {@code key} is {@code null}
      */
     public Value put(Key key, Value val){
-        if (this.keysInDisk.contains(key)){
-            this.persistenceManager.deserialize(key);
-            this.keysInDisk.remove(key);
-        }
-
         if (key == null)
         {
             throw new IllegalArgumentException("argument key to put() is null");
@@ -200,6 +192,11 @@ public class BTreeImpl<Key extends Comparable<Key>, Value> implements BTree<Key,
         if(alreadyThere != null)
         {
             alreadyThere.val = val;
+            try {
+                persistenceManager.delete(key);
+            } catch(IOException e){
+                throw new RuntimeException();
+            }
             return val;
         }
 

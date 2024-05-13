@@ -29,6 +29,8 @@ public class DocumentStoreImpl implements DocumentStore {
     private final PersistenceManager<URI, Document> persistenceManager;
     private final Set<URI> uriList = new HashSet<>();
     private final Set<URI> uriDisk = new HashSet<>();
+    private final Map<URI, Map<String, String>> metadataMap = new HashMap<>();
+
 
     private int docLimit;
     private int memoryLimit;
@@ -58,10 +60,12 @@ public class DocumentStoreImpl implements DocumentStore {
         if (uri == null || uri.toString().isEmpty() || key == null || key.isEmpty() || bTree.get(uri) == null) {
             throw new IllegalArgumentException();
         }
-
+        Map<String, String> hashMap = new HashMap<>();
+        hashMap.put(key, value);
+        metadataMap.put(uri, hashMap);
         this.updateDoc(uri);
         this.undoSetMetaDataLogic(uriPutLogic(uri), key);
-        return uriPutLogic(uri).setMetadataValue(key, value);
+        return bTree.get(uri).setMetadataValue(key, value);
     }
 
     /**
@@ -74,11 +78,11 @@ public class DocumentStoreImpl implements DocumentStore {
      */
     public String getMetadata(URI uri, String key) throws IOException{
         if (uri == null || uri.toString().isEmpty() || key == null || key.isEmpty() || this.bTree.get(uri) == null) {
-            throw new IllegalArgumentException();
+            throw new IllegalArgumentException("uri or key was null or empty or uri does not exist in BTree");
         }
 
         this.updateDoc(uri);
-        return uriPutLogic(uri).getMetadataValue(key);
+        return bTree.get(uri).getMetadataValue(key);
     }
 
     /**
@@ -91,20 +95,16 @@ public class DocumentStoreImpl implements DocumentStore {
      */
     public int put(InputStream input, URI uri, DocumentFormat format) throws IOException{
         if (uri == null || uri.toString().isEmpty() || format == null){
-            throw new IllegalArgumentException();
+            throw new IllegalArgumentException("uri was null or empty or format was null");
         }
 
-        checkToRemoveDocumentFromDisk(uri);
-
-        if (input == null){
-            if(uriList.contains(uri)) {
-                int hashCode = bTree.get(uri).hashCode();
+        if (input == null || uriDisk.contains(uri)){
+            int hashCode = bTree.get(uri).hashCode();
+            if (hashCode != 0){
                 delete(uri);
                 return hashCode;
-            }
-
-            else{
-                return 0;
+            } else{
+                return hashCode;
             }
         }
 
@@ -126,25 +126,34 @@ public class DocumentStoreImpl implements DocumentStore {
      * @return the given document
      */
     public Document get(URI url) throws IOException{
-        if (bTree.get(url) != null){
-            this.updateDoc(url);
+        if (!uriDisk.contains(url) && !uriList.contains(url)){
+            return null;
+        } else{
+            return uriPutLogic(url);
         }
-        return uriPutLogic(url);
     }
+
     /**
      * @param url the unique identifier of the document to delete
      * @return true if the document is deleted, false if no document exists with that URI
      */
     public boolean delete(URI url){
-        if (!uriList.contains(url)){  //check if the document is in the hashtable, if not return false
+        if (uriList.contains(url)){
+            uriList.remove(url);
+            undoDeleteLogic(url);
+            deleteDocFromHeap(bTree.get(url));  //delete doc from heap
+            removeDocumentWordsFromTrie(bTree.get(url));  //remove every word in the document from the trie
+            bTree.put(url, null);
+            return true;
+        }else if (uriDisk.contains(url)){
+            undoDeleteFromDiskLogic(url);
+            uriDisk.remove(url);
+            removeDocumentWordsFromTrie(bTree.get(url));  //bTree.get call takes it out of disk
+            bTree.put(url, null);
+            return true;
+        } else{
             return false;
         }
-
-        uriDeleteLogic(url);
-        undoDeleteLogic(url);
-        deleteDocFromHeap(bTree.get(url));  //delete doc from heap
-        removeDocumentWordsFromTrie(bTree.get(url));  //remove every word in the document from the trie
-        return bTree.put(url, null) != null;
     }
 
     private void removeDocumentWordsFromTrie(Document document){
@@ -155,7 +164,6 @@ public class DocumentStoreImpl implements DocumentStore {
 
     private int add(URI uri, Document document){
         checkIfDocExceedsLimit(document);
-        uriList.add(uri);
 
         if (uriList.contains(uri)){
             removeDocumentWordsFromTrie(bTree.get(uri));
@@ -166,12 +174,15 @@ public class DocumentStoreImpl implements DocumentStore {
             int hashCode = bTree.put(uri, document).hashCode();
             this.addDocumentWordsToTrie(document); //add every word in the document to the trie
             docHeapInsert(document);
+            complyWithLimits();
             return hashCode;
         }
 
+        uriList.add(uri);
         bTree.put(uri, document);
         docHeapInsert(document);
         undoSetDocumentLogic(uri);
+        complyWithLimits();
         return 0;
     }
 
@@ -299,7 +310,7 @@ public class DocumentStoreImpl implements DocumentStore {
         }
     }
 
-    private void undoSetMetaDataLogic(Document document, String key){
+    private void undoSetMetaDataLogic(Document document, String key) throws IOException{
         if (this.getMetadata(document.getKey(), key) != null) {  //check if the metadata previously existed
             String previousValue = document.getMetadataValue(key);
 
@@ -321,25 +332,37 @@ public class DocumentStoreImpl implements DocumentStore {
 
     private void undoSetDocumentLogic(URI uri){
         Consumer<URI> consumer = restoreDocument -> {  //don't update nanoTime because document will be deleted
-            this.removeDocumentWordsFromTrie(bTree.get(uri));
-            this.deleteDocFromHeap(bTree.get(uri));
-            bTree.put(uri, null);
+                removeDocumentWordsFromTrie(bTree.get(uri));
+                deleteDocFromHeap(bTree.get(uri));
+                bTree.put(uri, null);
         };
 
         undoStack.push(new GenericCommand<>(uri, consumer));
     }
 
-    private void undoDeleteLogic(URI url){  //same logic for changing a document
-        Document previousDocument = bTree.get(url);
+    private void undoDeleteLogic(URI uri){  //same logic for changing a document
+        Document previousDocument = bTree.get(uri);
         Consumer<URI> consumer = restoreDocument -> {
             checkDocumentMemory(previousDocument);  //make sure the document memory isn't higher than the limit
-            bTree.put(url, previousDocument);
-            this.addDocumentWordsToTrie(this.bTree.get(url));
-            this.bTree.get(url).setLastUseTime(System.nanoTime());
-            this.docHeap.insert(new BTreeAccess(url));
-            this.complyWithLimits();
+            bTree.put(uri, previousDocument);
+            addDocumentWordsToTrie(bTree.get(uri));
+            bTree.get(uri).setLastUseTime(System.nanoTime());
+            docHeap.insert(new BTreeAccess(uri));
+            complyWithLimits();
         };
-        undoStack.push(new GenericCommand<>(url, consumer));
+        undoStack.push(new GenericCommand<>(uri, consumer));
+    }
+
+    private void undoDeleteFromDiskLogic(URI uri){
+        Document previousDocument = bTree.get(uri);
+        Consumer<URI> consumer = restoreDocumentToDisk ->{
+            uriDisk.add(uri);
+            checkDocumentMemory(previousDocument);
+            addDocumentWordsToTrie(previousDocument);
+            previousDocument.setLastUseTime(System.nanoTime());
+            docHeap.insert(new BTreeAccess(uri));
+        };
+        undoStack.push(new GenericCommand<>(uri, consumer));
     }
 
     /**
@@ -368,7 +391,7 @@ public class DocumentStoreImpl implements DocumentStore {
         return docList;
     }
 
-    private Comparator<URI> createComparator(String keyword){
+    private Comparator<URI> createComparator(String keyword) {
         Comparator<URI> wordCountComparator = Comparator.comparing(URI -> this.get(URI).wordCount(keyword));
         return wordCountComparator.reversed();
     }
@@ -596,8 +619,8 @@ public class DocumentStoreImpl implements DocumentStore {
 
     private void deleteDocFromHeap(Document doc){
         doc.setLastUseTime(0);
-        this.docHeap.reHeapify(new BTreeAccess(doc.getKey()));
-        this.docHeap.remove();
+        docHeap.reHeapify(new BTreeAccess(doc.getKey()));
+        docHeap.remove();
     }
 
     private List<URI> updateURI(List<URI> uriList){
@@ -706,20 +729,11 @@ public class DocumentStoreImpl implements DocumentStore {
         return bTree.get(uri);
     }
 
-    private void uriDeleteLogic(URI uri){
-        uriList.remove(uri);
-        uriDisk.add(uri);
-    }
-
     private class BTreeAccess implements Comparable<BTreeAccess> {
         private URI uri;
 
         public BTreeAccess(URI uri){
             this.uri = uri;
-        }
-
-        public URI getURI(){
-            return this.uri;
         }
 
         public Document getDocument(){
