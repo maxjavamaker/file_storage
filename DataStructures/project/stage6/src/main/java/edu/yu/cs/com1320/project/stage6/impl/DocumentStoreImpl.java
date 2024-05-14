@@ -392,7 +392,13 @@ public class DocumentStoreImpl implements DocumentStore {
     }
 
     private Comparator<URI> createComparator(String keyword) {
-        Comparator<URI> wordCountComparator = Comparator.comparing(URI -> this.get(URI).wordCount(keyword));
+        Comparator<URI> wordCountComparator = Comparator.comparing(uri -> {
+            try {
+                return this.get(uri).wordCount(keyword);
+            } catch (Exception e) {
+                throw new RuntimeException();
+            }
+        });
         return wordCountComparator.reversed();
     }
     /**
@@ -434,8 +440,12 @@ public class DocumentStoreImpl implements DocumentStore {
      * @return a Set of URIs of the documents that were deleted.
      */
     public Set<URI> deleteAll(String keyword){
-        List<Document> docs = this.search(keyword);  //get list of documents with the keyword
-        return this.deleteAndUndoLogic(docs);  //remove all traces of the document, create undo logic
+        try {
+            List<Document> docs = this.search(keyword);  //get list of documents with the keyword
+            return this.deleteAndUndoLogic(docs);  //remove all traces of the document, create undo logic
+        }catch (IOException e){
+            throw new RuntimeException();
+        }
     }
 
     /**
@@ -445,8 +455,12 @@ public class DocumentStoreImpl implements DocumentStore {
      * @return a Set of URIs of the documents that were deleted.
      */
     public Set<URI> deleteAllWithPrefix(String keywordPrefix){
-        List<Document> docs = this.searchByPrefix(keywordPrefix);  //get list of documents with the keyword
-        return this.deleteAndUndoLogic(docs);  //remove all traces of the document, create undo logic
+        try {
+            List<Document> docs = this.searchByPrefix(keywordPrefix);  //get list of documents with the keyword
+            return this.deleteAndUndoLogic(docs);  //remove all traces of the document, create undo logic
+        }catch(IOException e){
+            throw new RuntimeException();
+        }
     }
 
     /**
@@ -611,12 +625,6 @@ public class DocumentStoreImpl implements DocumentStore {
         return uriSet;
     }
 
-    private void checkToDeleteDocumentFromDisk(URI uri){
-        uriDisk.remove(uri);
-        persistenceManager.delete(uri);
-        removeDocumentWordsFromTrie();
-    }
-
     private void deleteDocFromHeap(Document doc){
         doc.setLastUseTime(0);
         docHeap.reHeapify(new BTreeAccess(doc.getKey()));
@@ -687,9 +695,13 @@ public class DocumentStoreImpl implements DocumentStore {
     }
 
     private void moveDocumentToMemory(){
-        bTree.moveToDisk(docHeap.peek().uri);  //delete doc from hashtable
-        uriDisk.add(docHeap.peek().uri);
-        docHeap.remove();  //delete doc from the heap
+        try {
+            bTree.moveToDisk(docHeap.peek().uri);  //delete doc from hashtable
+            uriDisk.add(docHeap.peek().uri);
+            docHeap.remove();  //delete doc from the heap
+        }catch (IOException e){
+            throw new RuntimeException();
+        }
     }
 
     /**
