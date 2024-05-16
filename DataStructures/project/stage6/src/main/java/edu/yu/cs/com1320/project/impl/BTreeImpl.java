@@ -3,11 +3,9 @@ package edu.yu.cs.com1320.project.impl;
 
 import edu.yu.cs.com1320.project.BTree;
 import edu.yu.cs.com1320.project.stage6.PersistenceManager;
+import edu.yu.cs.com1320.project.stage6.impl.DocumentPersistenceManager;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
 
 public class BTreeImpl<Key extends Comparable<Key>, Value> implements BTree<Key, Value> {
     //max children per B-tree node = MAX-1 (must be an even number and greater than 2)
@@ -43,16 +41,6 @@ public class BTreeImpl<Key extends Comparable<Key>, Value> implements BTree<Key,
         {
             this.previous = previous;
         }
-        private Node getPrevious()
-        {
-            return this.previous;
-        }
-
-        private Entry[] getEntries()
-        {
-            return Arrays.copyOf(this.entries, this.entryCount);
-        }
-
     }
 
     //internal nodes: only use key and child
@@ -69,10 +57,7 @@ public class BTreeImpl<Key extends Comparable<Key>, Value> implements BTree<Key,
             this.val = val;
             this.child = child;
         }
-        public Object getValue()
-        {
-            return this.val;
-        }
+
         public Comparable getKey()
         {
             return this.key;
@@ -90,18 +75,55 @@ public class BTreeImpl<Key extends Comparable<Key>, Value> implements BTree<Key,
         if (persistenceManager == null){
             throw new IllegalStateException("persistence manager was not assigned");
         }
+        Entry temp = get(this.root, k, height);  //null val to show it's in disk
+        if (temp != null && temp.key == null){
+            return;
+        }
         persistenceManager.serialize(k, this.get(k));
-        put(k, null);  //null out the value to symbolize it's in memory
+        if (temp != null){
+            temp.val = null;
+        }
+    }
+
+    private void moveFromDisk(Key k){
+        try {
+            Value val = persistenceManager.deserialize(k);
+            put(k, val);
+        } catch (IOException e){
+            throw new RuntimeException();
+        }
     }
 
     public void setPersistenceManager(PersistenceManager<Key,Value> pm){
         this.persistenceManager = pm;
     }
 
+    private Value delete(Key key){
+        Entry doomedEntry = this.get(this.root, key, height);
+        if (doomedEntry != null){
+            if (doomedEntry.val == null && doomedEntry.key != null){
+                deleteFromDisk(key);
+            }
+            Value doomedVal = (Value) doomedEntry.val;
+            doomedEntry.key = null;
+            doomedEntry.val = null;
+            return doomedVal;
+        }
+        return null;
+    }
+
+    private void deleteFromDisk(Key key){
+        try {
+            persistenceManager.delete(key);
+        }catch(IOException e){
+            throw new RuntimeException();
+        }
+    }
+
     /**
      * @return the number of key-value pairs in this symbol table
      */
-    public int size()
+    private int size()
     {
         return this.n;
     }
@@ -115,21 +137,17 @@ public class BTreeImpl<Key extends Comparable<Key>, Value> implements BTree<Key,
      *         table
      * @throws IllegalArgumentException if {@code key} is {@code null}
      */
-    public Value get(Key key)
-    {
-        if (key == null)
-        {
+    public Value get(Key key) {
+        if (key == null) {
             throw new IllegalArgumentException("argument to get() is null");
         }
         Entry entry = this.get(this.root, key, this.height);
-        if(entry != null)
+        if (entry != null)
         {
-            if(entry.val == null){
-                try {
-                    return put(key, persistenceManager.deserialize(key));  //if entry is null deserialize and bring back into memory
-                }catch(IOException e){
-                    throw new RuntimeException();
-                }
+            if (entry.key != null && entry.val == null){
+                moveFromDisk(key);
+            }else if (entry.key == null && entry.val == null){
+                return null;
             }
             return (Value) entry.val;
         }
@@ -144,7 +162,7 @@ public class BTreeImpl<Key extends Comparable<Key>, Value> implements BTree<Key,
         {
             for (int j = 0; j < currentNode.entryCount; j++)
             {
-                if(isEqual(key, entries[j].key))
+                if(entries[j].key != null && isEqual(key, entries[j].key))
                 {
                     return entries[j];
                 }
@@ -183,6 +201,9 @@ public class BTreeImpl<Key extends Comparable<Key>, Value> implements BTree<Key,
      * @throws IllegalArgumentException if {@code key} is {@code null}
      */
     public Value put(Key key, Value val){
+        if (val == null){
+             return delete(key);
+        }
         if (key == null)
         {
             throw new IllegalArgumentException("argument key to put() is null");
@@ -191,13 +212,13 @@ public class BTreeImpl<Key extends Comparable<Key>, Value> implements BTree<Key,
         Entry alreadyThere = this.get(this.root, key, this.height);
         if(alreadyThere != null)
         {
-            alreadyThere.val = val;
-            try {
-                persistenceManager.delete(key);
-            } catch(IOException e){
-                throw new RuntimeException();
+            //if the key is not null and the value is null, you must delete the key from the disk
+            if (alreadyThere.key != null && alreadyThere.val == null){
+                deleteFromDisk(key);
             }
-            return val;
+            Object doomedVal = alreadyThere.val;
+            alreadyThere.val = val;
+            return (Value) doomedVal;
         }
 
         Node newNode = this.put(this.root, key, val, this.height);

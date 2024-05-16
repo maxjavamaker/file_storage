@@ -52,23 +52,7 @@ public class DocumentPersistenceManagerTest {
     }
 
     @Test
-    public void testSerializeAndDeserializeOneDocument(){
-        try {
-            persistenceManager.serialize(uri1, document1);
-
-            // Deserialize documents
-            Document deserializedDoc1 = persistenceManager.deserialize(uri1);
-
-            // Check if deserialized documents are equal to the originals
-            assertEquals(document1, deserializedDoc1);
-
-        }catch(IOException e){
-            e.printStackTrace(System.out);
-        }
-    }
-
-    @Test
-    public void testSerializeAndDeserializeDocument() {
+    public void testSerializeAndDeserializeDocumentFromNonBaseDirectory() {
         // Serialize documents
         try {
             persistenceManager.serialize(uri1, document1);
@@ -78,12 +62,13 @@ public class DocumentPersistenceManagerTest {
             // Deserialize documents
             Document deserializedDoc1 = persistenceManager.deserialize(uri1);
             Document deserializedDoc2 = persistenceManager.deserialize(uri2);
-            Document deserializedDoc3 = persistenceManager.deserialize(uri3);
 
             // Check if deserialized documents are equal to the originals
             assertEquals(document1, deserializedDoc1);
+            assertEquals(document1.getMetadata(), deserializedDoc1.getMetadata());
             assertEquals(document2, deserializedDoc2);
-            assertEquals(document3, deserializedDoc3);
+            assertEquals(document2.getMetadata(), deserializedDoc2.getMetadata());
+
         }catch(IOException e){
             e.printStackTrace(System.out);
         }
@@ -101,21 +86,19 @@ public class DocumentPersistenceManagerTest {
             persistenceManager.delete(uri1);
 
             // Try to deserialize the deleted document
-            Document deletedDoc = persistenceManager.deserialize(uri1);
-
-            // Check if the deleted document is null
-            assertNull(deletedDoc);
+            assertThrows(RuntimeException.class, () -> {
+                Document deletedDoc = persistenceManager.deserialize(uri1);
+            });
 
             // Check if other documents are still deserializable
             Document deserializedDoc2 = persistenceManager.deserialize(uri2);
             Document deserializedDoc3 = persistenceManager.deserialize(uri3);
-
             assertNotNull(deserializedDoc2);
             assertNotNull(deserializedDoc3);
+
+
         }catch(IOException e){
             e.printStackTrace(System.out);
         }
     }
-
-    // Add more test cases as needed
 }

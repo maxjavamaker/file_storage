@@ -30,6 +30,10 @@ public class DocumentImpl implements Document {
     }
 
     public DocumentImpl(URI uri, String text, Map<String, Integer> wordCountMap){
+        if (uri == null || uri.toString().isEmpty() || text == null || text.isEmpty()) {
+            throw new IllegalArgumentException();
+        }
+
         this.uri = uri;
         this.text = text;
         this.isBinary = false;
@@ -162,7 +166,7 @@ public class DocumentImpl implements Document {
     }
 
     public HashMap<String, Integer> getWordMap(){
-        return (HashMap) this.words;
+        return (HashMap<String, Integer>) this.words;
     }
 
     /**
