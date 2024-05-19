@@ -76,13 +76,11 @@ public class BTreeImpl<Key extends Comparable<Key>, Value> implements BTree<Key,
             throw new IllegalStateException("persistence manager was not assigned");
         }
         Entry temp = get(this.root, k, height);  //null val to show it's in disk
-        if (temp != null && temp.key == null){
+        if (temp == null || temp.key == null){
             return;
         }
         persistenceManager.serialize(k, this.get(k));
-        if (temp != null){
-            temp.val = null;
-        }
+        temp.val = null;
     }
 
     private void moveFromDisk(Key k){
@@ -263,7 +261,8 @@ public class BTreeImpl<Key extends Comparable<Key>, Value> implements BTree<Key,
             //the first entry in the current node that key is LESS THAN
             for (j = 0; j < currentNode.entryCount; j++)
             {
-                if (less(key, currentNode.entries[j].key))
+                //if the key is null it was previously deleted so skip it
+                if (currentNode.entries[j].key != null && less(key, currentNode.entries[j].key))
                 {
                     break;
                 }

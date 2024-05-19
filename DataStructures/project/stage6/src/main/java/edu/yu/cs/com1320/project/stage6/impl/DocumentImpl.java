@@ -10,11 +10,11 @@ import java.util.Set;
 
 
 public class DocumentImpl implements Document {
-    private final boolean isBinary;
+    private transient final boolean isBinary;
     private String text;
     private final URI uri;
     private byte[] binaryData;
-    private long lastUseTime;
+    private transient long lastUseTime;
     private Map<String, String> metadata = new HashMap<>();
     private Map<String, Integer> words = new HashMap<>();
 

@@ -2,16 +2,17 @@ package edu.yu.cs.com1320.project.stage6.impl;
 
 import edu.yu.cs.com1320.project.stage6.Document;
 import edu.yu.cs.com1320.project.stage6.DocumentStore;
-import edu.yu.cs.com1320.project.stage6.impl.DocumentStoreImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.*;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -41,11 +42,11 @@ class DocumentStoreImplTest {
             value1 = "value1";
             value2 = "value2";
             value3 = "value3";
-            uri1 = new URI("uri1");
-            uri2 = new URI("uri2");
-            uri3 = new URI("uri3");
-            uri4 = new URI("uri4");
-            uri5 = new URI("uri5");
+            uri1 = new URI("https://yu/edu/documents/Document1");
+            uri2 = new URI("https://yu/edu/documents/Document2");
+            uri3 = new URI("https://yu/edu/documents/Document3");
+            uri4 = new URI("https://yu/edu/documents/Document4");
+            uri5 = new URI("https://yu/edu/documents/Document5");
             documentStore = new DocumentStoreImpl();
 
         } catch (URISyntaxException e) {
@@ -223,9 +224,9 @@ class DocumentStoreImplTest {
     @Test
     public void getAndSetMetadata(){
         try {
-            assertThrows(IllegalArgumentException.class, () -> {
-                documentStore.setMetadata(uri1, key1, value1);
-            });
+            assertThrows(IllegalArgumentException.class, () ->
+                    documentStore.setMetadata(uri1, key1, value1)
+            );
 
             documentStore.put(new ByteArrayInputStream(text1.getBytes()), uri1, DocumentStore.DocumentFormat.TXT);
             documentStore.setMetadata(uri1, key1, value1);
@@ -261,7 +262,7 @@ class DocumentStoreImplTest {
             documentStore.put(new ByteArrayInputStream(text3.getBytes()), uri3, DocumentStore.DocumentFormat.TXT);
 
             documentStore.setMetadata(uri2, key2, value2);
-            uri1 = new URI("uri1");
+            uri1 = new URI("https://yu/edu/documents/Document1");
             documentStore.setMetadata(uri1, key1, value2);
             assertEquals(value2, documentStore.getMetadata(uri1, key1));
             assertEquals(value2, documentStore.setMetadata(uri1, key1, value1));
@@ -369,7 +370,7 @@ class DocumentStoreImplTest {
             assertEquals(document1, documentStore.get(uri1));
         }
         catch(IOException e){
-
+            e.printStackTrace(System.out);
         }
     }
 
@@ -400,7 +401,7 @@ class DocumentStoreImplTest {
             Document document1 = new DocumentImpl(uri1, text1, null);
             Document document2 = new DocumentImpl(uri2, text2, null);
 
-            //problem when i set max doc count to 1
+            //problem when I set max doc count to 1
             documentStore.setMaxDocumentCount(2);
 
             assertEquals(document1, documentStore.get(uri1));
@@ -434,6 +435,228 @@ class DocumentStoreImplTest {
         }
         catch(IOException e){
 
+        }
+    }
+
+    @Test
+    public void undoDelete(){
+        try{
+            documentStore.put(new ByteArrayInputStream(text1.getBytes()), uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream(text2.getBytes()), uri2, DocumentStore.DocumentFormat.TXT);
+
+            assert(!documentStore.search(text1).isEmpty());
+            assert(!documentStore.search(text2).isEmpty());
+
+            assertTrue(documentStore.delete(uri2));
+
+            assertNotNull(documentStore.get(uri1));
+            assertNull(documentStore.get(uri2));
+
+            documentStore.undo();
+
+            assertNotNull(documentStore.get(uri1));
+            assertNotNull(documentStore.get(uri2));
+        }
+        catch(IOException e){
+
+        }
+    }
+
+    @Test
+    public void undoDeleteOnSpecificURI(){
+        try{
+            documentStore.put(new ByteArrayInputStream(text1.getBytes()), uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream(text2.getBytes()), uri2, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream(text3.getBytes()), uri3, DocumentStore.DocumentFormat.TXT);
+
+            assertNotNull(documentStore.get(uri1));
+            assertNotNull(documentStore.get(uri2));
+            assertNotNull(documentStore.get(uri3));
+
+
+            assertTrue(documentStore.delete(uri1));
+            assertTrue(documentStore.delete(uri3));
+
+            assertNull(documentStore.get(uri1));
+            assertNotNull(documentStore.get(uri2));
+            assertNull(documentStore.get(uri3));
+
+            documentStore.undo(uri1);
+
+            assertNotNull(documentStore.get(uri1));
+            assertNotNull(documentStore.get(uri2));
+            assertNull(documentStore.get(uri3));
+
+            documentStore.undo();
+
+            assertNotNull(documentStore.get(uri1));
+            assertNotNull(documentStore.get(uri2));
+            assertNotNull(documentStore.get(uri3));
+
+        }
+        catch(IOException e){
+
+        }
+    }
+
+    @Test
+    public void undoDeleteWhichViolatesMemoryLimits(){
+        try{
+            documentStore.put(new ByteArrayInputStream(text1.getBytes()), uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream(text2.getBytes()), uri2, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream(text3.getBytes()), uri3, DocumentStore.DocumentFormat.TXT);
+
+            assertNotNull(documentStore.get(uri1));
+            assertNotNull(documentStore.get(uri2));
+            assertNotNull(documentStore.get(uri3));
+
+            documentStore.setMaxDocumentBytes(5);
+
+            assertTrue(documentStore.delete(uri2));
+            documentStore.undo();
+            assertNotNull(documentStore.get(uri2));
+        }
+        catch(IOException e){
+            e.printStackTrace(System.out);
+        }
+    }
+
+    @Test
+    public void search(){
+        try {
+            documentStore.put(new ByteArrayInputStream("hello hello hello".getBytes()), uri3, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream("Hello hello Hello".getBytes()), uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream("hello Hello hello".getBytes()), uri2, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream("hello Hello hello".getBytes()), uri4, DocumentStore.DocumentFormat.BINARY);
+
+            Document document1 = new DocumentImpl(uri1, "Hello hello Hello", null);
+            Document document2 = new DocumentImpl(uri2, "hello Hello hello", null);
+            Document document3 = new DocumentImpl(uri3, "hello hello hello", null);
+            Document document4 = new DocumentImpl(uri4, "hello hello hello".getBytes());
+
+
+            List<Document> docList = documentStore.search("hello");
+
+            assertEquals(document3, docList.get(0));
+            assertEquals(document2, docList.get(1));
+            assertEquals(document1, docList.get(2));
+            assert(!docList.contains(document4));
+
+            assert(documentStore.search("test").isEmpty());
+
+
+        } catch (IOException e){
+            e.printStackTrace(System.out);
+        }
+    }
+
+    @Test
+    public void searchUpdatesLastUsedTime(){
+        try {
+            documentStore.put(new ByteArrayInputStream("hello hello elephant".getBytes()), uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream("Hello hello tiger".getBytes()), uri2, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream("Hello Hello lion".getBytes()), uri3, DocumentStore.DocumentFormat.TXT);
+
+            documentStore.search("elephant");
+            documentStore.setMaxDocumentCount(1);
+
+        } catch (IOException e){
+            e.printStackTrace(System.out);
+        }
+    }
+
+    @Test
+    public void searchHandlesDocumentsInDisk(){
+        try {
+            documentStore.put(new ByteArrayInputStream("hello hello elephant".getBytes()), uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream("Hello hello tiger".getBytes()), uri2, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream("Hello Hello lion".getBytes()), uri3, DocumentStore.DocumentFormat.TXT);
+
+            documentStore.setMaxDocumentCount(1);
+            documentStore.search("tiger");
+
+        } catch (IOException e){
+            e.printStackTrace(System.out);
+        }
+    }
+
+    @Test
+    public void searchByPrefix(){
+        try {
+            documentStore.put(new ByteArrayInputStream("helloa helloa helloc".getBytes()), uri3, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream("helloa helloab helloabyy".getBytes()), uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream("helloa hellob".getBytes()), uri2, DocumentStore.DocumentFormat.TXT);
+
+            List<Document> docList = documentStore.searchByPrefix("helloa");
+
+            assertEquals(documentStore.get(uri1), docList.get(0));
+            assertEquals(documentStore.get(uri3), docList.get(1));
+            assertEquals(documentStore.get(uri2), docList.get(2));
+
+        } catch (IOException e){
+            e.printStackTrace(System.out);
+        }
+    }
+
+    @Test
+    public void searchByPrefixUpdatesLastUsedTime(){
+        try {
+            documentStore.put(new ByteArrayInputStream("hello hello elephant".getBytes()), uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream("Hello hello tiger".getBytes()), uri2, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream("Hello Hello lion".getBytes()), uri3, DocumentStore.DocumentFormat.TXT);
+
+            documentStore.searchByPrefix("ele");
+            documentStore.setMaxDocumentCount(1);
+
+        } catch (IOException e){
+            e.printStackTrace(System.out);
+        }
+    }
+
+    @Test
+    public void searchByPrefixHandlesDocumentsInDisk() {
+        try {
+            documentStore.put(new ByteArrayInputStream("hello hello elephant".getBytes()), uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream("Hello hello eliana".getBytes()), uri2, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream("Hello Hello lion".getBytes()), uri3, DocumentStore.DocumentFormat.TXT);
+
+            documentStore.setMaxDocumentCount(1);
+            documentStore.searchByPrefix("el");
+
+        } catch (IOException e) {
+            e.printStackTrace(System.out);
+        }
+    }
+
+    @Test
+    public void searchByMetadata(){
+        try {
+            documentStore.put(new ByteArrayInputStream(text1.getBytes()), uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream(text2.getBytes()), uri2, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream(text3.getBytes()), uri3, DocumentStore.DocumentFormat.BINARY);
+
+            documentStore.setMetadata(uri1, key1, value1);
+            documentStore.setMetadata(uri1, key2, value2);
+
+            documentStore.setMetadata(uri2, key1, value1);
+            documentStore.setMetadata(uri2, key2, value2);
+
+            documentStore.setMetadata(uri3, key1, value1);
+
+            Map<String, String> myMap = new HashMap<>();
+            myMap.put(key1, value1);
+            myMap.put(key2, value2);
+
+            List<Document> myList = documentStore.searchByMetadata(myMap);
+
+            assert(myList.contains(documentStore.get(uri1)));
+            assert(myList.contains(documentStore.get(uri2)));
+            assert(!myList.contains(documentStore.get(uri3)));
+
+            documentStore.setMaxDocumentCount(2);
+
+        } catch (IOException e){
+            e.printStackTrace(System.out);
         }
     }
 }

@@ -60,13 +60,17 @@ public class DocumentStoreImpl implements DocumentStore {
         if (uri == null || uri.toString().isEmpty() || key == null || key.isEmpty() || !uriList.contains(uri) && !uriDisk.contains(uri)) {
             throw new IllegalArgumentException();
         }
-        Map<String, String> hashMap = new HashMap<>();
-        hashMap.put(key, value);
-        metadataMap.put(uri, hashMap);
+
+        if (metadataMap.get(uri) == null){
+            Map<String, String> hashMap = new HashMap<>();
+            hashMap.put(key, value);
+            metadataMap.put(uri, hashMap);
+        } else{
+            metadataMap.get(uri).put(key, value);
+        }
 
         undoSetMetaDataLogic(bTree.get(uri), key);
         uriPutLogic(uri);
-        complyWithLimits();
         return bTree.get(uri).setMetadataValue(key, value);
     }
 
@@ -84,7 +88,6 @@ public class DocumentStoreImpl implements DocumentStore {
         }
 
         uriPutLogic(uri);
-        complyWithLimits();
         return bTree.get(uri).getMetadataValue(key);
     }
 
@@ -167,10 +170,7 @@ public class DocumentStoreImpl implements DocumentStore {
             return null;
         }
 
-        Document document = uriPutLogic(url);
-        checkIfDocExceedsLimit(document);
-        complyWithLimits();
-        return document;
+        return uriPutLogic(url);
     }
 
     /**
@@ -317,7 +317,6 @@ public class DocumentStoreImpl implements DocumentStore {
         Consumer<URI> consumer = revertMetadata -> {
             checkIfDocExceedsLimit(document);
             uriPutLogic(document.getKey());
-            complyWithLimits();
 
             if (previousMetadata != null) {
                 document.setMetadataValue(key, previousMetadata);
@@ -354,11 +353,16 @@ public class DocumentStoreImpl implements DocumentStore {
         Document previousDocument = bTree.get(uri);
         Consumer<URI> consumer = restoreDocument -> {
             checkIfDocExceedsLimit(previousDocument);  //make sure the document memory isn't higher than the limit
-            removeDocumentWordsFromTrie(bTree.get(uri));
+
+            //this logic is applicable if the call is to undo a put document
+            if (bTree.get(uri) != null){
+                removeDocumentWordsFromTrie(bTree.get(uri));
+            }
+
             bTree.put(uri, previousDocument);
             addDocumentWordsToTrie(previousDocument);
-            bTree.get(uri).setLastUseTime(System.nanoTime());
-            docHeap.insert(new BTreeAccess(uri));
+            reHeapify(uri);
+            uriList.add(uri);
             complyWithLimits();
         };
         undoStack.push(new GenericCommand<>(uri, consumer));
@@ -366,13 +370,20 @@ public class DocumentStoreImpl implements DocumentStore {
 
     private void undoDeleteFromDiskLogic(URI uri){
         Document previousDocument = bTree.get(uri);
-        Consumer<URI> consumer = restoreDocumentToDisk ->{
+        Consumer<URI> consumer = restoreDocumentToDisk -> {
+            checkIfDocExceedsLimit(previousDocument);
             uriDisk.add(uri);
             checkIfDocExceedsLimit(previousDocument);
             addDocumentWordsToTrie(previousDocument);
-            previousDocument.setLastUseTime(System.nanoTime());
-            docHeap.insert(new BTreeAccess(uri));
+            bTree.put(uri, previousDocument);
+            reHeapify(uri);
+            try{
+                bTree.moveToDisk(uri);
+            } catch (IOException e) {
+                throw new RuntimeException();
+            }
         };
+
         undoStack.push(new GenericCommand<>(uri, consumer));
     }
 
@@ -387,31 +398,27 @@ public class DocumentStoreImpl implements DocumentStore {
         if (keyword == null) {
             throw new IllegalArgumentException();
         }
-        return searchWithoutUpdating(keyword, true);
-    }
 
-    private List<Document> searchWithoutUpdating(String keyword, boolean updateDocument){
+        List<Document> docList = new ArrayList<>();
+        List<URI> uriList = docTrie.getSorted(keyword, createComparator(keyword));
 
-        List<URI> uriList = updateDocument ? this.updateURI(docTrie.getSorted(keyword, this.createComparator(keyword))) : docTrie.getSorted(keyword, this.createComparator(keyword));
-
-        List<Document> docList = new ArrayList<>();  //convert the list of uri's to a list of documents
-        for (URI uri : uriList){
+        for (URI uri : uriList) {
             uriPutLogic(uri);
             docList.add(bTree.get(uri));
         }
+
+        reHeapify(docList);
         return docList;
     }
 
     private Comparator<URI> createComparator(String keyword) {
         Comparator<URI> wordCountComparator = Comparator.comparing(uri -> {
-            try {
-                return this.get(uri).wordCount(keyword);
-            } catch (Exception e) {
-                throw new RuntimeException();
-            }
+            return bTree.get(uri).wordCount(keyword);
         });
+
         return wordCountComparator.reversed();
     }
+
     /**
      * Retrieve all documents that contain text which starts with the given prefix
      * Documents are returned in sorted, descending order, sorted by the number of times the prefix appears in the document.
@@ -420,21 +427,28 @@ public class DocumentStoreImpl implements DocumentStore {
      * @return a List of the matches. If there are no matches, return an empty list.
      */
     public List<Document> searchByPrefix(String keywordPrefix) throws IOException{
-        List<URI> uriList = this.updateURI(docTrie.getAllWithPrefixSorted(keywordPrefix, createPrefixComparator(keywordPrefix))); //create comparator and pass it to tries' getAllWithPrefixSorted method, update all docs nanoTime
-
-        List<Document> docList = new ArrayList<>();  //convert the list of uri's to a list of documents
-        for (URI uri : uriList){
-            docList.add(this.bTree.get(uri));
+        if (keywordPrefix == null) {
+            throw new IllegalArgumentException();
         }
+
+        List<Document> docList = new ArrayList<>();
+        List<URI> uriList = docTrie.getAllWithPrefixSorted(keywordPrefix, createPrefixComparator(keywordPrefix));
+
+        for (URI uri : uriList) {
+            uriPutLogic(uri);
+            docList.add(bTree.get(uri));
+        }
+
+        reHeapify(docList);
         return docList;
     }
 
     private Comparator<URI> createPrefixComparator(String keyword){
-        Comparator<URI> wordCountComparator = Comparator.comparingInt(URI -> {  //create a list that sort documents in order of the number of times a prefix appears
+        Comparator<URI> wordCountComparator = Comparator.comparing(uri -> {  //create a list that sort uris in order of times a prefix appears
             int wordCount = 0;
-            for (String word : this.bTree.get(URI).getWords()){
+            for (String word : bTree.get(uri).getWords()){
                 if (word.startsWith(keyword)){
-                    wordCount++;
+                    wordCount += bTree.get(uri).wordCount(word);
                 }
             }
 
@@ -451,12 +465,15 @@ public class DocumentStoreImpl implements DocumentStore {
      * @return a Set of URIs of the documents that were deleted.
      */
     public Set<URI> deleteAll(String keyword){
-        try {
-            List<Document> docs = this.search(keyword);  //get list of documents with the keyword
-            return this.deleteAndUndoLogic(docs);  //remove all traces of the document, create undo logic
-        }catch (IOException e){
+        List<URI> uriList = docTrie.getSorted(keyword, createComparator(keyword));
+        Set<URI> returnValue = new HashSet<>(uriList);
+        try{
+            deleteAndUndoLogic(uriList);
+        } catch (Exception e){
             throw new RuntimeException();
         }
+
+        return returnValue;
     }
 
     /**
@@ -466,12 +483,15 @@ public class DocumentStoreImpl implements DocumentStore {
      * @return a Set of URIs of the documents that were deleted.
      */
     public Set<URI> deleteAllWithPrefix(String keywordPrefix){
+        List<URI> uriListTemp = docTrie.getAllWithPrefixSorted(keywordPrefix, createPrefixComparator(keywordPrefix));
+        Set<URI> returnValue = new HashSet<>(uriListTemp);
         try {
-            List<Document> docs = this.searchByPrefix(keywordPrefix);  //get list of documents with the keyword
-            return this.deleteAndUndoLogic(docs);  //remove all traces of the document, create undo logic
-        }catch(IOException e){
+            deleteAndUndoLogic(uriListTemp);  //remove all traces of the document, create undo logic
+        }catch(Exception e){
             throw new RuntimeException();
         }
+
+        return returnValue;
     }
 
     /**
@@ -479,38 +499,17 @@ public class DocumentStoreImpl implements DocumentStore {
      * @return a List of all documents whose metadata contains all the given values for the given keys. If no documents contain all the given key-value pairs, return an empty list.
      */
     public List<Document> searchByMetadata(Map<String,String> keysValues) throws IOException{
-        return this.searchByMetadataWithoutUpdating(keysValues, true);
-    }
+        List<Document> docList = new ArrayList<>();
 
-    private List<Document> searchByMetadataWithoutUpdating(Map<String,String> keysValues, boolean updateDocuments){
-        Set<URI> allURISet = new HashSet<>();
-        allURISet.addAll(uriList);
-        allURISet.addAll(uriDisk);
-
-        List<Document>  docList = new ArrayList<>();
-
-        for (URI uri : allURISet){
-            Document doc = bTree.get(uri);  //could cause issues with bringing back into memory
-            boolean addToList = true;
-            for (String key : keysValues.keySet()){
-                if (doc.getMetadata().get(key) == null || !doc.getMetadata().get(key).equals(keysValues.get(key))){
-                    addToList = false;
-                    break;
-                }
-            }
-
-            if (addToList){  //if the metadata matches add the doc to the arrayList
-                uriPutLogic(doc.getKey());
-                docList.add(doc);
+        for (URI uri : metadataMap.keySet()){
+            if ((uriList.contains(uri) || uriDisk.contains(uri)) && metadataMap.get(uri).equals(keysValues)){
+                uriPutLogic(uri);
+                docList.add(bTree.get(uri));
             }
         }
 
-        if (updateDocuments){
-            return reHeapify(docList);
-        }
-        else{
-            return docList;
-        }
+        reHeapify(docList);
+        return docList;
     }
 
     /**
@@ -521,19 +520,27 @@ public class DocumentStoreImpl implements DocumentStore {
      * @param keysValues;
      * @return a List of the matches. If there are no matches, return an empty list.
      */
-    public List<Document> searchByKeywordAndMetadata(String keyword, Map<String,String> keysValues) throws IOException{
-        List<Document> metadataDocList = searchByMetadataWithoutUpdating(keysValues, false);  //List of documents with matching metadata
-        List<Document> keywordDocList = searchWithoutUpdating(keyword, false);  //List of documents with the keyword sorted by number of occurrences
-        List<Document> finalList = new ArrayList<>();
 
-        for (Document doc : metadataDocList){  //if a doc has the keyword and metadata add to the finalList
-            if (keywordDocList.contains(doc)){
-                finalList.add(doc);
-                uriPutLogic(doc.getKey());
+    public List<Document> searchByKeywordAndMetadata(String keyword, Map<String,String> keysValues) throws IOException{
+        List<URI> keysValuesList = new ArrayList<>();
+
+        for (URI uri : metadataMap.keySet()){
+            if ((uriList.contains(uri) || uriDisk.contains(uri)) && metadataMap.get(uri).equals(keysValues)){
+                keysValuesList.add(uri);
             }
         }
 
-        return this.reHeapify(finalList);
+        List<URI> keywordList = docTrie.getSorted(keyword, createComparator(keyword));
+        List<Document> finalList = new ArrayList<>();
+
+        for (URI uri : keysValuesList){
+            if (keywordList.contains(uri)){
+                finalList.add(bTree.get(uri));
+                uriPutLogic(uri);
+            }
+        }
+
+        return reHeapify(finalList);
     }
 
     /**
@@ -544,18 +551,25 @@ public class DocumentStoreImpl implements DocumentStore {
      * @return a List of the matches. If there are no matches, return an empty list.
      */
     public List<Document> searchByPrefixAndMetadata(String keywordPrefix,Map<String,String> keysValues) throws IOException{
-        List<Document> metadataDocList = searchByMetadataWithoutUpdating(keysValues, false);  //List of documents with matching metadata
-        List<Document> keywordDocList = this.searchByPrefix(keywordPrefix);  //List of documents with the Prefix sorted by number of occurrences
-        List<Document> finalList = new ArrayList<>();
+        List<URI> keysValuesList = new ArrayList<>();
 
-        for (Document doc : metadataDocList){  //if a doc has the Prefix and metadata add to the finalList
-            if (keywordDocList.contains(doc)){
-                finalList.add(doc);
-                uriPutLogic(doc.getKey());
+        for (URI uri : metadataMap.keySet()){
+            if ((uriList.contains(uri) || uriDisk.contains(uri)) && metadataMap.get(uri).equals(keysValues)){
+                keysValuesList.add(uri);
             }
         }
 
-        return this.reHeapify(finalList);
+        List<URI> keywordPrefixList = docTrie.getAllWithPrefixSorted(keywordPrefix, createPrefixComparator(keywordPrefix));
+        List<Document> finalList = new ArrayList<>();
+
+        for (URI uri : keysValuesList){
+            if (keywordPrefixList.contains(uri)){
+                finalList.add(bTree.get(uri));
+                uriPutLogic(uri);
+            }
+        }
+
+        return reHeapify(finalList);
     }
 
     /**
@@ -564,8 +578,18 @@ public class DocumentStoreImpl implements DocumentStore {
      * @return a Set of URIs of the documents that were deleted.
      */
     public Set<URI> deleteAllWithMetadata(Map<String,String> keysValues) throws IOException{
-        List<Document> docs = this.searchByMetadata(keysValues); //get documents with matching metadata
-        return this.deleteAndUndoLogic(docs);  //remove all traces of the documents, create undo logic
+        List<URI> matchingMetadata = new ArrayList<>();
+
+        for (URI uri : metadataMap.keySet()){
+            if ((uriList.contains(uri) || uriDisk.contains(uri)) && metadataMap.get(uri).equals(keysValues)){
+                uriPutLogic(uri);
+                matchingMetadata.add(uri);
+            }
+        }
+
+        deleteAndUndoLogic(matchingMetadata);
+
+        return new HashSet<>(matchingMetadata);
     }
 
     /**
@@ -575,8 +599,19 @@ public class DocumentStoreImpl implements DocumentStore {
      * @return a Set of URIs of the documents that were deleted.
      */
     public Set<URI> deleteAllWithKeywordAndMetadata(String keyword,Map<String,String> keysValues) throws IOException{
-        List<Document>  docs = this.searchByKeywordAndMetadata(keyword, keysValues); //get docs with matching metadata and keyword
-        return this.deleteAndUndoLogic(docs);  //remove all traces of the document, create undo logic
+        List<URI> keywordList = docTrie.getSorted(keyword, createComparator(keyword));
+        List<URI> finalList = new ArrayList<>();
+
+        for (URI uri : metadataMap.keySet()){
+            if ((uriList.contains(uri) || uriDisk.contains(uri)) && metadataMap.get(uri).equals(keysValues)){
+                if (keywordList.contains(uri)){
+                    finalList.add(uri);
+                }
+            }
+        }
+
+        deleteAndUndoLogic(finalList);
+        return new HashSet<>(finalList);
     }
 
     /**
@@ -586,70 +621,57 @@ public class DocumentStoreImpl implements DocumentStore {
      * @return a Set of URIs of the documents that were deleted.
      */
     public Set<URI> deleteAllWithPrefixAndMetadata(String keywordPrefix,Map<String,String> keysValues) throws IOException{
-        List<Document> docs = this.searchByPrefixAndMetadata(keywordPrefix, keysValues); //get docs with matching metadata
-        return this.deleteAndUndoLogic(docs);  //remove all traces of the document, create undo logic
+        List<URI> keywordPrefixList = docTrie.getAllWithPrefixSorted(keywordPrefix, createComparator(keywordPrefix));
+        List<URI> finalList = new ArrayList<>();
+
+        for (URI uri : metadataMap.keySet()){
+            if ((uriList.contains(uri) || uriDisk.contains(uri)) && metadataMap.get(uri).equals(keysValues)){
+                if (keywordPrefixList.contains(uri)){
+                    finalList.add(uri);
+                }
+            }
+        }
+
+        deleteAndUndoLogic(finalList);
+        return new HashSet<>(finalList);
     }
 
-    private Set<URI> deleteAndUndoLogic(List<Document> docs){
-        boolean createCommandSet = (docs.size() > 1);
-        Set<URI> uriSet = new HashSet<>();
-
-        if (docs.isEmpty()){  //if there are no documents to delete return an empty set
-            return uriSet;
-        }
+    private void deleteAndUndoLogic(List<URI> doomedURIList){
+        boolean createCommandSet = doomedURIList.size() > 1;
 
         CommandSet<URI> commandSet = new CommandSet<>();
         GenericCommand<URI> genericCommand;
-        for (Document document : docs){  //cycle through every document
-            for (String word : document.getWords()) {  //cycle through every word in the document
-                this.docTrie.delete(word, document.getKey());  //delete the document at the word
+
+        Consumer<URI> consumer = documentPut -> {
+           for (URI uri : doomedURIList){
+               
+           }
+        };
+
+        //logic to delete documents in both memory and disk
+        for (URI uri : doomedURIList){
+            if (uriList.contains(uri)) {
+                removeDocumentFromHeap(bTree.get(uri));
             }
 
-            Consumer<URI> consumer = documentPut -> {  //undo logic
-                checkIfDocExceedsLimit(document);  //if document is higher than memory limit throw exception
-                for (String word : document.getWords()) {
-                    this.docTrie.put(word, document.getKey());
-                }
-                this.bTree.put(document.getKey(), document);
-                document.setLastUseTime(System.nanoTime());
-                docHeap.insert(new BTreeAccess(document.getKey()));
-                complyWithLimits();
-            };
-
-            uriSet.add(document.getKey());  //add uri to the set
-
-            this.bTree.put(document.getKey(), null);  //delete document from hashtable
-            this.removeDocumentFromHeap(document);  //delete doc from the heap
-            genericCommand = new GenericCommand<>(document.getKey(), consumer);
-
-            if (createCommandSet) { //add generic command to the command set
-                commandSet.addCommand(genericCommand);
-            }
-
-            else{  //push the generic command set to the stack
-                this.undoStack.push(genericCommand);
-                return uriSet;
-            }
+            uriList.remove(uri);
+            uriDisk.remove(uri);
+            removeDocumentWordsFromTrie(bTree.get(uri));
+            bTree.put(uri, null);
         }
 
-        this.undoStack.push(commandSet);
-        return uriSet;
+        if (createCommandSet) { //add generic command to the command set
+            commandSet.addCommand(genericCommand);
+            undoStack.push(commandSet);
+        } else {  //push the generic command set to the stack
+            undoStack.push(genericCommand);
+        }
     }
 
     private void removeDocumentFromHeap(Document doc){
         doc.setLastUseTime(0);
         docHeap.reHeapify(new BTreeAccess(doc.getKey()));
         docHeap.remove();
-    }
-
-    private List<URI> updateURI(List<URI> uriList){
-        long time = System.nanoTime();
-        for (URI uri : uriList){
-            bTree.get(uri).setLastUseTime(time);  //update last used time
-            docHeap.reHeapify(new BTreeAccess(uri));  //order the heap
-        }
-
-        return uriList;
     }
 
     private List<Document> reHeapify(List<Document> docList){
@@ -720,41 +742,29 @@ public class DocumentStoreImpl implements DocumentStore {
     }
 
     private void complyWithLimits(){
-        if (this.docLimit != 0){
-            while(this.uriList.size() > this.docLimit){
-                this.moveLeastRecentlyUsedDocumentToDisk();
+        if (docLimit != 0){
+            while(uriList.size() > docLimit){
+                moveLeastRecentlyUsedDocumentToDisk();
             }
         }
 
-        if (this.memoryLimit != 0){
-            while(this.getTotalMemory() > this.memoryLimit){
-                this.moveLeastRecentlyUsedDocumentToDisk();
+        if (memoryLimit != 0){
+            while(getTotalMemory() > memoryLimit){
+               moveLeastRecentlyUsedDocumentToDisk();
             }
-        }
-    }
-
-    private void uriRemoveLogic(URI uri){
-        try {
-            if (uriList.contains(uri)) {
-                uriList.remove(uri);
-                uriDisk.add(uri);
-            }
-
-            removeDocumentFromHeap(bTree.get(uri));
-            bTree.moveToDisk(uri);
-        } catch (IOException e){
-            throw new RuntimeException();
         }
     }
 
     private Document uriPutLogic(URI uri){
         if (uriDisk.contains(uri)) {
-
             uriDisk.remove(uri);
             uriList.add(uri);
-            reHeapify(uri);
-
+            checkIfDocExceedsLimit(bTree.get(uri));
+            docHeap.insert(new BTreeAccess(uri));
         }
+
+        reHeapify(uri);
+        complyWithLimits();
         return bTree.get(uri);
     }
 
