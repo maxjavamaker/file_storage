@@ -468,7 +468,7 @@ public class DocumentStoreImpl implements DocumentStore {
         List<URI> uriList = docTrie.getSorted(keyword, createComparator(keyword));
         Set<URI> returnValue = new HashSet<>(uriList);
         try{
-            deleteAndUndoLogic(uriList);
+            deleteListLogic(uriList);
         } catch (Exception e){
             throw new RuntimeException();
         }
@@ -486,7 +486,7 @@ public class DocumentStoreImpl implements DocumentStore {
         List<URI> uriListTemp = docTrie.getAllWithPrefixSorted(keywordPrefix, createPrefixComparator(keywordPrefix));
         Set<URI> returnValue = new HashSet<>(uriListTemp);
         try {
-            deleteAndUndoLogic(uriListTemp);  //remove all traces of the document, create undo logic
+            deleteListLogic(uriListTemp);  //remove all traces of the document, create undo logic
         }catch(Exception e){
             throw new RuntimeException();
         }
@@ -530,7 +530,13 @@ public class DocumentStoreImpl implements DocumentStore {
             }
         }
 
-        List<URI> keywordList = docTrie.getSorted(keyword, createComparator(keyword));
+        List<URI> keywordList = docTrie.getSorted(keyword, new Comparator<URI>() {
+            @Override
+            public int compare(URI o1, URI o2) {
+                return 0;
+            }
+        });
+
         List<Document> finalList = new ArrayList<>();
 
         for (URI uri : keysValuesList){
@@ -559,7 +565,12 @@ public class DocumentStoreImpl implements DocumentStore {
             }
         }
 
-        List<URI> keywordPrefixList = docTrie.getAllWithPrefixSorted(keywordPrefix, createPrefixComparator(keywordPrefix));
+        List<URI> keywordPrefixList = docTrie.getAllWithPrefixSorted(keywordPrefix, new Comparator<URI>() {
+            @Override
+            public int compare(URI o1, URI o2) {
+                return 0;
+            }
+        });
         List<Document> finalList = new ArrayList<>();
 
         for (URI uri : keysValuesList){
@@ -582,12 +593,11 @@ public class DocumentStoreImpl implements DocumentStore {
 
         for (URI uri : metadataMap.keySet()){
             if ((uriList.contains(uri) || uriDisk.contains(uri)) && metadataMap.get(uri).equals(keysValues)){
-                uriPutLogic(uri);
                 matchingMetadata.add(uri);
             }
         }
 
-        deleteAndUndoLogic(matchingMetadata);
+        deleteListLogic(matchingMetadata);
 
         return new HashSet<>(matchingMetadata);
     }
@@ -610,7 +620,7 @@ public class DocumentStoreImpl implements DocumentStore {
             }
         }
 
-        deleteAndUndoLogic(finalList);
+        deleteListLogic(finalList);
         return new HashSet<>(finalList);
     }
 
@@ -632,21 +642,12 @@ public class DocumentStoreImpl implements DocumentStore {
             }
         }
 
-        deleteAndUndoLogic(finalList);
+        deleteListLogic(finalList);
         return new HashSet<>(finalList);
     }
 
-    private void deleteAndUndoLogic(List<URI> doomedURIList){
-        boolean createCommandSet = doomedURIList.size() > 1;
-
-        CommandSet<URI> commandSet = new CommandSet<>();
-        GenericCommand<URI> genericCommand;
-
-        Consumer<URI> consumer = documentPut -> {
-           for (URI uri : doomedURIList){
-               
-           }
-        };
+    private void deleteListLogic(List<URI> doomedURIList){
+        deleteListUndoLogic(doomedURIList);
 
         //logic to delete documents in both memory and disk
         for (URI uri : doomedURIList){
@@ -659,12 +660,50 @@ public class DocumentStoreImpl implements DocumentStore {
             removeDocumentWordsFromTrie(bTree.get(uri));
             bTree.put(uri, null);
         }
+    }
 
-        if (createCommandSet) { //add generic command to the command set
-            commandSet.addCommand(genericCommand);
+    public void deleteListUndoLogic(List<URI> doomedURIList){
+        boolean createCommandSet = doomedURIList.size() > 1;
+
+        CommandSet<URI> commandSet = new CommandSet<>();
+
+        for (URI uri : doomedURIList){
+            Document doc = bTree.get(uri);
+            long lastUsedTime = doc.getLastUseTime();
+            Set<URI> tempDiskSet = new HashSet<>(uriDisk);
+
+            Consumer<URI> consumer = restoreDocument -> {
+                checkIfDocExceedsLimit(doc);
+                doc.setLastUseTime(lastUsedTime);
+                if (tempDiskSet.contains(uri)) {
+                    uriDisk.add(uri);
+                    bTree.put(uri, doc);
+                    try {
+                        bTree.moveToDisk(uri);
+                    } catch (IOException e){
+                        throw new RuntimeException();
+                    }
+                } else {
+                    uriList.add(uri);
+                    bTree.put(uri, doc);
+                    docHeap.insert(new BTreeAccess(uri));
+                }
+
+                addDocumentWordsToTrie(doc);
+                complyWithLimits();
+            };
+
+            GenericCommand<URI> genericCommand = new GenericCommand<>(uri, consumer);
+
+            if (createCommandSet) {
+                commandSet.addCommand(genericCommand);
+            } else {
+                undoStack.push(genericCommand);
+            }
+        }
+
+        if (createCommandSet){
             undoStack.push(commandSet);
-        } else {  //push the generic command set to the stack
-            undoStack.push(genericCommand);
         }
     }
 
@@ -770,9 +809,11 @@ public class DocumentStoreImpl implements DocumentStore {
 
     private class BTreeAccess implements Comparable<BTreeAccess> {
         private URI uri;
+        private long lastUseTime;
 
         public BTreeAccess(URI uri){
             this.uri = uri;
+            this.lastUseTime = bTree.get(uri).getLastUseTime();
         }
 
         public Document getDocument(){

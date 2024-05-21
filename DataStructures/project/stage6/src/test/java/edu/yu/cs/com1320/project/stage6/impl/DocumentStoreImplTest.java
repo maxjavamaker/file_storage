@@ -10,7 +10,6 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -218,7 +217,22 @@ class DocumentStoreImplTest {
 
     @Test
     public void undoPutRevertsDocumentsToMemory(){
-        //still need to create the logic
+        try {
+            documentStore.put(new ByteArrayInputStream(text1.getBytes()), uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream(text2.getBytes()), uri2, DocumentStore.DocumentFormat.TXT);
+
+            documentStore.setMaxDocumentCount(1);
+            documentStore.undo();
+
+            assertNotNull(documentStore.get(uri1));
+            assert(!documentStore.search(text1).isEmpty());
+            assertNull(documentStore.get(uri2));
+            assert(documentStore.search(text2).isEmpty());
+
+        }
+        catch(IOException e){
+            e.printStackTrace(System.out);
+        }
     }
 
     @Test
@@ -654,6 +668,418 @@ class DocumentStoreImplTest {
             assert(!myList.contains(documentStore.get(uri3)));
 
             documentStore.setMaxDocumentCount(2);
+
+        } catch (IOException e){
+            e.printStackTrace(System.out);
+        }
+    }
+
+    @Test
+    public void searchByMetadataUpdatesLastUsedTime(){
+        try {
+            documentStore.put(new ByteArrayInputStream(text1.getBytes()), uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream(text2.getBytes()), uri2, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream(text3.getBytes()), uri3, DocumentStore.DocumentFormat.BINARY);
+
+            documentStore.setMetadata(uri1, key1, value1);
+            documentStore.setMetadata(uri2, key1, value1);
+
+            Map<String, String> myMap = new HashMap<>();
+            myMap.put(key1, value1);
+
+            documentStore.searchByMetadata(myMap);
+            documentStore.setMaxDocumentCount(2);
+
+        } catch (IOException e){
+            e.printStackTrace(System.out);
+        }
+    }
+
+    @Test
+    public void searchByMetadataHandlesDocumentsInDisk(){
+        try {
+            documentStore.put(new ByteArrayInputStream(text1.getBytes()), uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream(text2.getBytes()), uri2, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream(text3.getBytes()), uri3, DocumentStore.DocumentFormat.BINARY);
+
+            documentStore.setMetadata(uri1, key1, value1);
+            documentStore.setMetadata(uri2, key1, value1);
+
+            Map<String, String> myMap = new HashMap<>();
+            myMap.put(key1, value1);
+
+            documentStore.setMaxDocumentCount(2);
+            documentStore.searchByMetadata(myMap);
+
+        } catch (IOException e){
+            e.printStackTrace(System.out);
+        }
+    }
+
+    @Test
+    public void deleteAll(){
+        try {
+            documentStore.put(new ByteArrayInputStream(text1.getBytes()), uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream(text1.getBytes()), uri2, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream(text3.getBytes()), uri3, DocumentStore.DocumentFormat.BINARY);
+
+            documentStore.deleteAll(text1);
+
+            assertNull(documentStore.get(uri1));
+            assertNull(documentStore.get(uri2));
+            assert(documentStore.search(text1).isEmpty());
+
+        } catch (IOException e){
+            e.printStackTrace(System.out);
+        }
+    }
+
+    @Test
+    public void deleteAllDocumentOnDisk(){
+        try {
+            documentStore.put(new ByteArrayInputStream(text1.getBytes()), uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream(text1.getBytes()), uri2, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream(text3.getBytes()), uri3, DocumentStore.DocumentFormat.BINARY);
+
+            documentStore.setMaxDocumentCount(2);
+            documentStore.deleteAll(text1);
+
+            assertNull(documentStore.get(uri1));
+            assertNull(documentStore.get(uri2));
+            assert(documentStore.search(text1).isEmpty());
+
+        } catch (IOException e){
+            e.printStackTrace(System.out);
+        }
+    }
+
+    @Test
+    public void deleteAllUndo(){
+        try {
+            documentStore.put(new ByteArrayInputStream(text1.getBytes()), uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream(text1.getBytes()), uri2, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream(text3.getBytes()), uri3, DocumentStore.DocumentFormat.BINARY);
+
+            documentStore.setMaxDocumentCount(2);
+            documentStore.deleteAll(text1);
+
+            assertNull(documentStore.get(uri1));
+            assertNull(documentStore.get(uri2));
+            assert(documentStore.search(text1).isEmpty());
+
+            documentStore.undo();
+
+            assertNotNull(documentStore.get(uri1));
+            assertNotNull(documentStore.get(uri2));
+            assert(documentStore.search(text1).contains(documentStore.get(uri1)));
+            assert(documentStore.search(text1).contains(documentStore.get(uri2)));
+
+        } catch (IOException e){
+            e.printStackTrace(System.out);
+        }
+    }
+
+    @Test
+    public void deleteAllWithPrefix(){
+        try {
+            documentStore.put(new ByteArrayInputStream("text11".getBytes()), uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream(text2.getBytes()), uri2, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream("text13".getBytes()), uri3, DocumentStore.DocumentFormat.TXT);
+
+            assert(documentStore.searchByPrefix("text1").contains(documentStore.get(uri1)));
+            assert(documentStore.searchByPrefix("text1").contains(documentStore.get(uri3)));
+            assert(!documentStore.searchByPrefix("text1").contains(documentStore.get(uri2)));
+
+            documentStore.deleteAllWithPrefix("text1");
+
+            assertNull(documentStore.get(uri1));
+            assertNull(documentStore.get(uri3));
+            assertNotNull(documentStore.get(uri2));
+            assert(documentStore.search("text11").isEmpty());
+            assert(documentStore.search("text13").isEmpty());
+            assert(!documentStore.search("text2").isEmpty());
+
+        } catch (IOException e){
+            e.printStackTrace(System.out);
+        }
+    }
+
+    @Test
+    public void deleteAllWithPrefixOnDiskAndUndoOnSpecificURI(){
+        try {
+            documentStore.put(new ByteArrayInputStream("text13".getBytes()), uri3, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream(text2.getBytes()), uri2, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream("text11".getBytes()), uri1, DocumentStore.DocumentFormat.TXT);
+
+            documentStore.setMaxDocumentCount(2);
+            documentStore.deleteAllWithPrefix("text1");
+
+            assertNull(documentStore.get(uri1));
+            assertNull(documentStore.get(uri3));
+            assertNotNull(documentStore.get(uri2));
+            assert(documentStore.search("text11").isEmpty());
+            assert(documentStore.search("text13").isEmpty());
+            assert(!documentStore.search("text2").isEmpty());
+
+            documentStore.undo(uri1);
+
+        } catch (IOException e){
+            e.printStackTrace(System.out);
+        }
+    }
+
+    @Test
+    public void searchByKeyWordAndMetadata(){
+        try {
+            documentStore.put(new ByteArrayInputStream(text1.getBytes()), uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream(text2.getBytes()), uri2, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream(text3.getBytes()), uri3, DocumentStore.DocumentFormat.TXT);
+
+            documentStore.setMetadata(uri1, key1, value1);
+            documentStore.setMetadata(uri1, key2, value2);
+
+            documentStore.setMetadata(uri2, key1, value1);
+
+            documentStore.setMetadata(uri3, key1, value1);
+            documentStore.setMetadata(uri3, key2, value2);
+
+            Map<String, String> myMap = new HashMap<>();
+            myMap.put(key1, value1);
+            myMap.put(key2, value2);
+
+            List<Document> myList = documentStore.searchByKeywordAndMetadata(text1, myMap);
+
+            assert(myList.contains(documentStore.get(uri1)));
+            assert(!myList.contains(documentStore.get(uri2)));
+            assert(!myList.contains(documentStore.get(uri3)));
+
+        } catch (IOException e){
+            e.printStackTrace(System.out);
+        }
+    }
+
+    @Test
+    public void searchByKeyWordAndMetadataInDisk(){
+        try {
+            documentStore.put(new ByteArrayInputStream(text1.getBytes()), uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream(text2.getBytes()), uri2, DocumentStore.DocumentFormat.TXT);
+
+            documentStore.setMetadata(uri1, key1, value1);
+
+            Map<String, String> myMap = new HashMap<>();
+            myMap.put(key1, value1);
+
+            documentStore.searchByKeywordAndMetadata(text1, myMap);
+            documentStore.get(uri2);
+
+            documentStore.setMaxDocumentCount(1);
+            documentStore.searchByKeywordAndMetadata(text1, myMap);
+
+        } catch (IOException e){
+            e.printStackTrace(System.out);
+        }
+    }
+
+    @Test
+    public void searchByPrefixAndMetadata(){
+        try {
+            documentStore.put(new ByteArrayInputStream(text1.getBytes()), uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream(text2.getBytes()), uri2, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream(text3.getBytes()), uri3, DocumentStore.DocumentFormat.TXT);
+
+            documentStore.setMetadata(uri1, key1, value1);
+            documentStore.setMetadata(uri1, key2, value2);
+
+            documentStore.setMetadata(uri2, key1, value1);
+
+            documentStore.setMetadata(uri3, key1, value1);
+            documentStore.setMetadata(uri3, key2, value2);
+
+            Map<String, String> myMap = new HashMap<>();
+            myMap.put(key1, value1);
+            myMap.put(key2, value2);
+
+            List<Document> myList1 = documentStore.searchByPrefixAndMetadata("text", myMap);
+
+            assert(myList1.contains(documentStore.get(uri1)));
+            assert(!myList1.contains(documentStore.get(uri2)));
+            assert(myList1.contains(documentStore.get(uri3)));
+
+            List<Document> myList2 = documentStore.searchByPrefixAndMetadata("text", myMap);
+            documentStore.setMaxDocumentCount(2);
+        } catch (IOException e){
+            e.printStackTrace(System.out);
+        }
+    }
+
+    @Test
+    public void deleteAllWithMetadataAndUndo(){
+        try {
+            documentStore.put(new ByteArrayInputStream(text1.getBytes()), uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream(text2.getBytes()), uri2, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream(text3.getBytes()), uri3, DocumentStore.DocumentFormat.TXT);
+
+            documentStore.setMetadata(uri1, key1, value1);
+            documentStore.setMetadata(uri1, key2, value2);
+
+            documentStore.setMetadata(uri2, key1, value1);
+
+            documentStore.setMetadata(uri3, key1, value1);
+            documentStore.setMetadata(uri3, key2, value2);
+
+            Map<String, String> myMap = new HashMap<>();
+            myMap.put(key1, value1);
+            myMap.put(key2, value2);
+
+            documentStore.deleteAllWithMetadata(myMap);
+
+            assertNull(documentStore.get(uri1));
+            assertNotNull(documentStore.get(uri2));
+            assertNull(documentStore.get(uri3));
+
+            documentStore.undo(uri3);
+
+            assertNull(documentStore.get(uri1));
+            assertNotNull(documentStore.get(uri2));
+            assertNotNull(documentStore.get(uri3));
+
+        } catch (IOException e){
+            e.printStackTrace(System.out);
+        }
+    }
+
+    @Test
+    public void deleteAllWithMetadataDeleteFromDiskAndUndo(){
+        try {
+            documentStore.put(new ByteArrayInputStream(text1.getBytes()), uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream(text2.getBytes()), uri2, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream(text3.getBytes()), uri3, DocumentStore.DocumentFormat.BINARY);
+
+            documentStore.setMetadata(uri1, key1, value1);
+            documentStore.setMetadata(uri1, key2, value2);
+
+            documentStore.setMetadata(uri2, key1, value1);
+
+            documentStore.setMetadata(uri3, key1, value1);
+            documentStore.setMetadata(uri3, key2, value2);
+
+            Map<String, String> myMap = new HashMap<>();
+            myMap.put(key1, value1);
+            myMap.put(key2, value2);
+
+            documentStore.setMaxDocumentCount(2);
+
+            documentStore.deleteAllWithMetadata(myMap);
+
+            documentStore.undo(uri3);
+            documentStore.undo(uri1);
+            assert(!documentStore.search(text1).isEmpty());
+
+        } catch (IOException e){
+            e.printStackTrace(System.out);
+        }
+    }
+
+    @Test
+    public void deleteAllWithKeywordAndMetadata(){
+        try {
+            documentStore.put(new ByteArrayInputStream("text1".getBytes()), uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream("text2".getBytes()), uri2, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream("text3 text1".getBytes()), uri3, DocumentStore.DocumentFormat.TXT);
+
+            documentStore.setMetadata(uri1, key1, value1);
+            documentStore.setMetadata(uri1, key2, value2);
+
+            documentStore.setMetadata(uri2, key1, value1);
+
+            documentStore.setMetadata(uri3, key1, value1);
+            documentStore.setMetadata(uri3, key2, value2);
+
+            Map<String, String> myMap = new HashMap<>();
+            myMap.put(key1, value1);
+            myMap.put(key2, value2);
+
+            documentStore.deleteAllWithKeywordAndMetadata("text1", myMap);
+
+            assertNull(documentStore.get(uri1));
+            assertNotNull(documentStore.get(uri2));
+            assertNull(documentStore.get(uri3));
+
+        } catch (IOException e){
+            e.printStackTrace(System.out);
+        }
+    }
+
+    @Test
+    public void deleteAllWithPrefixAndMetadataUndo(){
+        try {
+            documentStore.put(new ByteArrayInputStream("text1".getBytes()), uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream("text2".getBytes()), uri2, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream("text3 text1".getBytes()), uri3, DocumentStore.DocumentFormat.TXT);
+
+            documentStore.setMetadata(uri1, key1, value1);
+            documentStore.setMetadata(uri1, key2, value2);
+
+            documentStore.setMetadata(uri2, key1, value1);
+
+            documentStore.setMetadata(uri3, key1, value1);
+            documentStore.setMetadata(uri3, key2, value2);
+
+            Map<String, String> myMap = new HashMap<>();
+            myMap.put(key1, value1);
+            myMap.put(key2, value2);
+
+            documentStore.setMaxDocumentCount(1);
+
+            documentStore.deleteAllWithKeywordAndMetadata("text1", myMap);
+            documentStore.delete(uri2);
+
+            documentStore.undo(uri1);
+            documentStore.undo(uri3);
+
+            assertNotNull(documentStore.get(uri1));
+            assertNotNull(documentStore.get(uri3));
+            assertNull(documentStore.get(uri2));
+
+            documentStore.undo();
+
+        } catch (IOException e){
+            e.printStackTrace(System.out);
+        }
+    }
+
+    @Test
+    public void deleteAllWithPrefixAndMetadataAndUndo(){
+        try {
+            documentStore.put(new ByteArrayInputStream("text11".getBytes()), uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream("text2".getBytes()), uri2, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream("text3 text1".getBytes()), uri3, DocumentStore.DocumentFormat.TXT);
+
+            documentStore.setMetadata(uri1, key1, value1);
+            documentStore.setMetadata(uri1, key2, value2);
+
+            documentStore.setMetadata(uri2, key1, value1);
+
+            documentStore.setMetadata(uri3, key1, value1);
+            documentStore.setMetadata(uri3, key2, value2);
+
+            Map<String, String> myMap = new HashMap<>();
+            myMap.put(key1, value1);
+            myMap.put(key2, value2);
+
+            documentStore.setMaxDocumentCount(1);
+
+            documentStore.deleteAllWithPrefixAndMetadata("text1", myMap);
+
+            assertNull(documentStore.get(uri1));
+            assertNotNull(documentStore.get(uri2));
+            assertNull(documentStore.get(uri3));
+
+            documentStore.undo();
+
+            assertNotNull(documentStore.get(uri1));
+            assertNotNull(documentStore.get(uri2));
+            assertNotNull(documentStore.get(uri3));
 
         } catch (IOException e){
             e.printStackTrace(System.out);

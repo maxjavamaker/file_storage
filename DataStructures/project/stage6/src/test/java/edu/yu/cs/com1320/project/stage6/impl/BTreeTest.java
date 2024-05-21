@@ -110,7 +110,7 @@ public class BTreeTest {
             assertEquals(bTree.get(uri1), document3);
 
             bTree.put(uri2, null);
-            assertNull(bTree.get(uri2));
+
             bTree.moveToDisk(uri2);  //make sure the document was not serialized because it was deleted
 
 

@@ -75,39 +75,15 @@ public class BTreeImpl<Key extends Comparable<Key>, Value> implements BTree<Key,
         if (persistenceManager == null){
             throw new IllegalStateException("persistence manager was not assigned");
         }
-        Entry temp = get(this.root, k, height);  //null val to show it's in disk
-        if (temp == null || temp.key == null){
-            return;
-        }
-        persistenceManager.serialize(k, this.get(k));
-        temp.val = null;
-    }
 
-    private void moveFromDisk(Key k){
-        try {
-            Value val = persistenceManager.deserialize(k);
-            put(k, val);
-        } catch (IOException e){
-            throw new RuntimeException();
-        }
-    }
+        Entry temp = get(this.root, k, height);
 
-    public void setPersistenceManager(PersistenceManager<Key,Value> pm){
-        this.persistenceManager = pm;
-    }
-
-    private Value delete(Key key){
-        Entry doomedEntry = this.get(this.root, key, height);
-        if (doomedEntry != null){
-            if (doomedEntry.val == null && doomedEntry.key != null){
-                deleteFromDisk(key);
-            }
-            Value doomedVal = (Value) doomedEntry.val;
-            doomedEntry.key = null;
-            doomedEntry.val = null;
-            return doomedVal;
+        //if the key is not in the tree, do nothing
+        //set the value to null to show it was serialized
+        if (temp != null){
+            persistenceManager.serialize(k, (Value) temp.val);
+            temp.val = null;
         }
-        return null;
     }
 
     private void deleteFromDisk(Key key){
@@ -118,12 +94,8 @@ public class BTreeImpl<Key extends Comparable<Key>, Value> implements BTree<Key,
         }
     }
 
-    /**
-     * @return the number of key-value pairs in this symbol table
-     */
-    private int size()
-    {
-        return this.n;
+    public void setPersistenceManager(PersistenceManager<Key,Value> pm){
+        this.persistenceManager = pm;
     }
 
     /**
@@ -139,16 +111,27 @@ public class BTreeImpl<Key extends Comparable<Key>, Value> implements BTree<Key,
         if (key == null) {
             throw new IllegalArgumentException("argument to get() is null");
         }
+
         Entry entry = this.get(this.root, key, this.height);
-        if (entry != null)
-        {
-            if (entry.key != null && entry.val == null){
-                moveFromDisk(key);
-            }else if (entry.key == null && entry.val == null){
-                return null;
+
+        if (entry != null) {
+
+            //if the value is null, it means it was serialized
+            if (entry.val == null){
+
+                //deserialize and set the value to the deserialized value
+                try {
+                    Value val = persistenceManager.deserialize(key);
+                    entry.val = val;
+                } catch (IOException e){
+                    throw new RuntimeException();
+                }
+
             }
+
             return (Value) entry.val;
         }
+
         return null;
     }
 
@@ -160,7 +143,7 @@ public class BTreeImpl<Key extends Comparable<Key>, Value> implements BTree<Key,
         {
             for (int j = 0; j < currentNode.entryCount; j++)
             {
-                if(entries[j].key != null && isEqual(key, entries[j].key))
+                if(isEqual(key, entries[j].key))
                 {
                     return entries[j];
                 }
@@ -199,21 +182,24 @@ public class BTreeImpl<Key extends Comparable<Key>, Value> implements BTree<Key,
      * @throws IllegalArgumentException if {@code key} is {@code null}
      */
     public Value put(Key key, Value val){
-        if (val == null){
-             return delete(key);
-        }
-        if (key == null)
-        {
+        if (key == null) {
             throw new IllegalArgumentException("argument key to put() is null");
         }
+
+        if (val == null){
+            return this.delete(this.root, key, this.height);
+        }
+
         //if the key already exists in the b-tree, simply replace the value
         Entry alreadyThere = this.get(this.root, key, this.height);
-        if(alreadyThere != null)
-        {
-            //if the key is not null and the value is null, you must delete the key from the disk
-            if (alreadyThere.key != null && alreadyThere.val == null){
+
+        if (alreadyThere != null) {
+
+            //if the value is null, it means it was serialized and you delete it from disk
+            if (alreadyThere.val == null){
                 deleteFromDisk(key);
             }
+
             Object doomedVal = alreadyThere.val;
             alreadyThere.val = val;
             return (Value) doomedVal;
@@ -221,9 +207,8 @@ public class BTreeImpl<Key extends Comparable<Key>, Value> implements BTree<Key,
 
         Node newNode = this.put(this.root, key, val, this.height);
         this.n++;
-        if (newNode == null)
-        {
-            return null;  //my addition
+        if (newNode == null) {
+            return null;
         }
 
         //split the root:
@@ -261,8 +246,7 @@ public class BTreeImpl<Key extends Comparable<Key>, Value> implements BTree<Key,
             //the first entry in the current node that key is LESS THAN
             for (j = 0; j < currentNode.entryCount; j++)
             {
-                //if the key is null it was previously deleted so skip it
-                if (currentNode.entries[j].key != null && less(key, currentNode.entries[j].key))
+                if (less(key, currentNode.entries[j].key))
                 {
                     break;
                 }
@@ -346,6 +330,49 @@ public class BTreeImpl<Key extends Comparable<Key>, Value> implements BTree<Key,
         }
         return newNode;
     }
+
+    private Value delete(Node currentNode, Key key, int height) {
+        int j;
+
+        // External node
+        if (height == 0) {
+            for (j = 0; j < currentNode.entryCount; j++) {
+                if (isEqual(key, currentNode.entries[j].key)) {
+                    break;
+                }
+            }
+            if (j == currentNode.entryCount) {
+                // Key not found in the leaf node
+                return null;
+            }
+        } else { // Internal node
+            for (j = 0; j < currentNode.entryCount; j++) {
+                if ((j + 1 == currentNode.entryCount) || less(key, currentNode.entries[j + 1].key)) {
+                    return this.delete(currentNode.entries[j].child, key, height - 1);
+                }
+            }
+        }
+
+        // Found the entry to delete
+        try {
+            Value val;
+            if (currentNode.entries[j].val == null) {
+                val = persistenceManager.deserialize(key);
+            } else {
+                val = (Value) currentNode.entries[j].val;
+            }
+
+            for (int i = j; i < currentNode.entryCount - 1; i++) {
+                currentNode.entries[i] = currentNode.entries[i + 1];
+            }
+
+            return val;
+
+        } catch(IOException e){
+            throw new RuntimeException();
+        }
+    }
+
 
     // comparison functions - make Comparable instead of Key to avoid casts
     private static boolean less(Comparable k1, Comparable k2)
