@@ -36,13 +36,13 @@ public class DocumentStoreImpl implements DocumentStore {
     private int memoryLimit;
     private final File directory;
 
-    public DocumentStoreImpl(){
+    public DocumentStoreImpl() {
         directory = new File(System.getProperty("user.dir"));
         persistenceManager = new DocumentPersistenceManager(directory);
         bTree.setPersistenceManager(persistenceManager);
     }
 
-    public DocumentStoreImpl(File dir){
+    public DocumentStoreImpl(File dir) {
         directory = dir;
         persistenceManager = new DocumentPersistenceManager(directory);
         bTree.setPersistenceManager(persistenceManager);
@@ -50,22 +50,23 @@ public class DocumentStoreImpl implements DocumentStore {
 
     /**
      * set the given key-value metadata pair for the document at the given uri
+     *
      * @param uri;
      * @param key;
      * @param value;
      * @return the old value, or null if there was no previous value
      * @throws IllegalArgumentException if the uri is null or blank, if there is no document stored at that uri, or if the key is null or blank
      */
-    public String setMetadata(URI uri, String key, String value) throws IOException{
+    public String setMetadata(URI uri, String key, String value) throws IOException {
         if (uri == null || uri.toString().isEmpty() || key == null || key.isEmpty() || !uriList.contains(uri) && !uriDisk.contains(uri)) {
             throw new IllegalArgumentException();
         }
 
-        if (metadataMap.get(uri) == null){
+        if (metadataMap.get(uri) == null) {
             Map<String, String> hashMap = new HashMap<>();
             hashMap.put(key, value);
             metadataMap.put(uri, hashMap);
-        } else{
+        } else {
             metadataMap.get(uri).put(key, value);
         }
 
@@ -82,7 +83,7 @@ public class DocumentStoreImpl implements DocumentStore {
      * @return the value, or null if there was no value
      * @throws IllegalArgumentException if the uri is null or blank, if there is no document stored at that uri, or if the key is null or blank
      */
-    public String getMetadata(URI uri, String key) throws IOException{
+    public String getMetadata(URI uri, String key) throws IOException {
         if (uri == null || uri.toString().isEmpty() || key == null || key.isEmpty() || !uriList.contains(uri) && !uriDisk.contains(uri)) {
             throw new IllegalArgumentException("uri or key was null or empty or uri does not exist in BTree");
         }
@@ -92,34 +93,32 @@ public class DocumentStoreImpl implements DocumentStore {
     }
 
     /**
-     * @param input the document being put
-     * @param uri unique identifier for the document
+     * @param input  the document being put
+     * @param uri    unique identifier for the document
      * @param format indicates which type of document format is being passed
      * @return if there is no previous doc at the given URI, return 0. If there is a previous doc, return the hashCode of the previous doc. If InputStream is null, this is a call to delete, and thus return either the hashCode of the deleted doc or 0 if there is no doc to delete.
-     * @throws IOException if there is an issue reading input
+     * @throws IOException              if there is an issue reading input
      * @throws IllegalArgumentException if url or format are null, OR IF THE MEMORY FOOTPRINT OF THE DOCUMENT IS > MAX DOCUMENT BYTES
      */
-    public int put(InputStream input, URI uri, DocumentFormat format) throws IOException{
-        if (uri == null || uri.toString().isEmpty() || format == null){
+    public int put(InputStream input, URI uri, DocumentFormat format) throws IOException {
+        if (uri == null || uri.toString().isEmpty() || format == null) {
             throw new IllegalArgumentException("uri was null or empty or format was null");
         }
 
-        if (input == null){
+        if (input == null) {
             Document document = bTree.get(uri);
-            if (document != null){
+            if (document != null) {
                 delete(uri);
                 return document.hashCode();
-            } else{
+            } else {
                 return 0;
             }
         }
 
-        if (format == DocumentFormat.BINARY){
+        if (format == DocumentFormat.BINARY) {
             Document document = new DocumentImpl(uri, input.readAllBytes());
             return add(uri, document); //don't add to trie if it's a binary document
-        }
-
-        else{
+        } else {
             byte[] bytes = input.readAllBytes();
             String text = new String(bytes, StandardCharsets.UTF_8);
             Document document = new DocumentImpl(uri, text, null);
@@ -165,8 +164,8 @@ public class DocumentStoreImpl implements DocumentStore {
      * @param url the unique identifier of the document to get
      * @return the given document
      */
-    public Document get(URI url) throws IOException{
-        if (!uriList.contains(url) && !uriDisk.contains(url)){
+    public Document get(URI url) throws IOException {
+        if (!uriList.contains(url) && !uriDisk.contains(url)) {
             return null;
         }
 
@@ -177,54 +176,43 @@ public class DocumentStoreImpl implements DocumentStore {
      * @param url the unique identifier of the document to delete
      * @return true if the document is deleted, false if no document exists with that URI
      */
-    public boolean delete(URI url){
-        if (uriList.contains(url)){
-            uriList.remove(url);
-            undoDeleteLogic(url);
-            removeDocumentFromHeap(bTree.get(url));  //delete doc from heap
-            removeDocumentWordsFromTrie(bTree.get(url));  //remove every word in the document from the trie
-            bTree.put(url, null);
+    public boolean delete(URI url) {
+        if (uriList.contains(url) || uriDisk.contains(url)) {
+            deleteListLogic(new ArrayList<>(Collections.singletonList(url)));
             return true;
-
-        }else if (uriDisk.contains(url)){
-            undoDeleteFromDiskLogic(url);
-            uriDisk.remove(url);
-            removeDocumentWordsFromTrie(bTree.get(url));  //bTree.get call takes it out of disk
-            bTree.put(url, null);
-            return true;
-        } else{
-            return false;
         }
+
+        return false;
     }
 
-    private void removeDocumentWordsFromTrie(Document document){
-        for (String word : document.getWords()){  //removing every word in the document from the trie
+    private void removeDocumentWordsFromTrie(Document document) {
+        for (String word : document.getWords()) {  //removing every word in the document from the trie
             docTrie.delete(word, document.getKey());
         }
     }
 
-    private void checkIfDocExceedsLimit(Document doc){
+    private void checkIfDocExceedsLimit(Document doc) {
         boolean typeText = doc.getDocumentTxt() != null;
-        if (typeText){
-            if (this.memoryLimit != 0 && doc.getDocumentTxt().getBytes().length > this.memoryLimit){
+        if (typeText) {
+            if (this.memoryLimit != 0 && doc.getDocumentTxt().getBytes().length > this.memoryLimit) {
                 throw new IllegalArgumentException();
             }
-        }
-        else{
-            if (this.memoryLimit != 0 && doc.getDocumentBinaryData().length > this.memoryLimit){
+        } else {
+            if (this.memoryLimit != 0 && doc.getDocumentBinaryData().length > this.memoryLimit) {
                 throw new IllegalArgumentException();
             }
         }
     }
 
-    private void addDocumentWordsToTrie(Document document){
-        for (String word : document.getWords()){  //adding every word in the document to the trie
+    private void addDocumentWordsToTrie(Document document) {
+        for (String word : document.getWords()) {  //adding every word in the document to the trie
             docTrie.put(word, document.getKey());
         }
     }
 
     /**
      * undo the last put or delete command
+     *
      * @throws IllegalStateException if there are no actions to be undone, i.e. the command stack is empty
      */
     public void undo() throws IllegalStateException {
@@ -232,51 +220,50 @@ public class DocumentStoreImpl implements DocumentStore {
             throw new IllegalStateException();
         }
 
-        if (undoStack.peek() instanceof CommandSet<?>){
+        if (undoStack.peek() instanceof CommandSet<?>) {
             CommandSet<?> temp = (CommandSet<?>) undoStack.pop();
             temp.undoAll();
-        }
-
-        else {
+        } else {
             undoStack.pop().undo();
         }
     }
 
     /**
      * undo the last put or delete that was done with the given URI as its key
+     *
      * @param url;
      * @throws IllegalStateException if there are no actions on the command stack for the given URI
      */
-    public void undo(URI url) throws IllegalStateException{
+    public void undo(URI url) throws IllegalStateException {
         boolean undidAction = false;
 
         Stack<Undoable> helper = new StackImpl<>();
 
-        while(undoStack.size() != 0 && !undidAction){
-            if (undoStack.peek() instanceof CommandSet<?>){
-                if (this.undoURLCommandSet(undoStack.peek(), url)){
+        while (undoStack.size() != 0 && !undidAction) {
+            if (undoStack.peek() instanceof CommandSet<?>) {
+                if (this.undoURLCommandSet(undoStack.peek(), url)) {
                     undidAction = true;
                 } else {
                     helper.push(undoStack.pop());
                 }
-            } else{
-                if (this.undoURLGenericCommand(undoStack.peek(), url)){
+            } else {
+                if (this.undoURLGenericCommand(undoStack.peek(), url)) {
                     undidAction = true;
-                } else{
+                } else {
                     helper.push(undoStack.pop());
                 }
             }
         }
-        while(helper.size() != 0) {
+        while (helper.size() != 0) {
             undoStack.push(helper.pop());
         }
 
-        if (!undidAction){
+        if (!undidAction) {
             throw new IllegalStateException("uri not found on the stack");
         }
     }
 
-    private boolean undoURLCommandSet(Undoable undo, URI url){
+    private boolean undoURLCommandSet(Undoable undo, URI url) {
         boolean undidAction = false;
         CommandSet<?> genericSet;
         CommandSet<URI> uriSet;
@@ -284,9 +271,9 @@ public class DocumentStoreImpl implements DocumentStore {
         genericSet = (CommandSet<?>) undo;
         uriSet = (CommandSet<URI>) genericSet;
 
-        if (uriSet.undo(url)){  //if it contains the target undo just the genericCommand on the target
+        if (uriSet.undo(url)) {  //if it contains the target undo just the genericCommand on the target
             undidAction = true;
-            if (uriSet.size() == 0){  //if all commands were undone remove command set from the stack
+            if (uriSet.size() == 0) {  //if all commands were undone remove command set from the stack
                 undoStack.pop();
             }
         }
@@ -294,7 +281,7 @@ public class DocumentStoreImpl implements DocumentStore {
         return undidAction;
     }
 
-    private boolean undoURLGenericCommand(Undoable undo, URI url){
+    private boolean undoURLGenericCommand(Undoable undo, URI url) {
         boolean undidAction = false;
         GenericCommand<?> genericCommand;
         GenericCommand<URI> genericURI;
@@ -302,7 +289,7 @@ public class DocumentStoreImpl implements DocumentStore {
         genericCommand = (GenericCommand<?>) undo;
         genericURI = (GenericCommand<URI>) genericCommand;
 
-        if (genericURI.getTarget().equals(url)){
+        if (genericURI.getTarget().equals(url)) {
             genericURI.undo();
             undidAction = true;
             undoStack.pop();
@@ -311,7 +298,7 @@ public class DocumentStoreImpl implements DocumentStore {
         return undidAction;
     }
 
-    private void undoSetMetaDataLogic(Document document, String key) throws IOException{
+    private void undoSetMetaDataLogic(Document document, String key) throws IOException {
         String previousMetadata = getMetadata(document.getKey(), key);
 
         Consumer<URI> consumer = revertMetadata -> {
@@ -320,11 +307,10 @@ public class DocumentStoreImpl implements DocumentStore {
 
             if (previousMetadata != null) {
                 document.setMetadataValue(key, previousMetadata);
-            }
-            else {
+            } else {
                 document.setMetadataValue(key, null);
             }
-                reHeapify(document.getKey());
+            reHeapify(document.getKey());
         };
 
         undoStack.push(new GenericCommand<>(document.getKey(), consumer));
@@ -368,33 +354,15 @@ public class DocumentStoreImpl implements DocumentStore {
         undoStack.push(new GenericCommand<>(uri, consumer));
     }
 
-    private void undoDeleteFromDiskLogic(URI uri){
-        Document previousDocument = bTree.get(uri);
-        Consumer<URI> consumer = restoreDocumentToDisk -> {
-            checkIfDocExceedsLimit(previousDocument);
-            uriDisk.add(uri);
-            checkIfDocExceedsLimit(previousDocument);
-            addDocumentWordsToTrie(previousDocument);
-            bTree.put(uri, previousDocument);
-            reHeapify(uri);
-            try{
-                bTree.moveToDisk(uri);
-            } catch (IOException e) {
-                throw new RuntimeException();
-            }
-        };
-
-        undoStack.push(new GenericCommand<>(uri, consumer));
-    }
-
     /**
      * Retrieve all documents whose text contains the given keyword.
      * Documents are returned in sorted, descending order, sorted by the number of times the keyword appears in the document.
      * Search is CASE SENSITIVE.
+     *
      * @param keyword;
      * @return a List of the matches. If there are no matches, return an empty list.
      */
-    public List<Document> search(String keyword) throws IOException{
+    public List<Document> search(String keyword) throws IOException {
         if (keyword == null) {
             throw new IllegalArgumentException();
         }
@@ -423,10 +391,11 @@ public class DocumentStoreImpl implements DocumentStore {
      * Retrieve all documents that contain text which starts with the given prefix
      * Documents are returned in sorted, descending order, sorted by the number of times the prefix appears in the document.
      * Search is CASE SENSITIVE.
+     *
      * @param keywordPrefix;
      * @return a List of the matches. If there are no matches, return an empty list.
      */
-    public List<Document> searchByPrefix(String keywordPrefix) throws IOException{
+    public List<Document> searchByPrefix(String keywordPrefix) throws IOException {
         if (keywordPrefix == null) {
             throw new IllegalArgumentException();
         }
@@ -443,11 +412,11 @@ public class DocumentStoreImpl implements DocumentStore {
         return docList;
     }
 
-    private Comparator<URI> createPrefixComparator(String keyword){
+    private Comparator<URI> createPrefixComparator(String keyword) {
         Comparator<URI> wordCountComparator = Comparator.comparing(uri -> {  //create a list that sort uris in order of times a prefix appears
             int wordCount = 0;
-            for (String word : bTree.get(uri).getWords()){
-                if (word.startsWith(keyword)){
+            for (String word : bTree.get(uri).getWords()) {
+                if (word.startsWith(keyword)) {
                     wordCount += bTree.get(uri).wordCount(word);
                 }
             }
@@ -461,15 +430,16 @@ public class DocumentStoreImpl implements DocumentStore {
     /**
      * Completely remove any trace of any document which contains the given keyword
      * Search is CASE SENSITIVE.
+     *
      * @param keyword;
      * @return a Set of URIs of the documents that were deleted.
      */
-    public Set<URI> deleteAll(String keyword){
+    public Set<URI> deleteAll(String keyword) {
         List<URI> uriList = docTrie.getSorted(keyword, createComparator(keyword));
         Set<URI> returnValue = new HashSet<>(uriList);
-        try{
+        try {
             deleteListLogic(uriList);
-        } catch (Exception e){
+        } catch (Exception e) {
             throw new RuntimeException();
         }
 
@@ -479,15 +449,16 @@ public class DocumentStoreImpl implements DocumentStore {
     /**
      * Completely remove any trace of any document which contains a word that has the given prefix
      * Search is CASE SENSITIVE.
+     *
      * @param keywordPrefix;
      * @return a Set of URIs of the documents that were deleted.
      */
-    public Set<URI> deleteAllWithPrefix(String keywordPrefix){
+    public Set<URI> deleteAllWithPrefix(String keywordPrefix) {
         List<URI> uriListTemp = docTrie.getAllWithPrefixSorted(keywordPrefix, createPrefixComparator(keywordPrefix));
         Set<URI> returnValue = new HashSet<>(uriListTemp);
         try {
             deleteListLogic(uriListTemp);  //remove all traces of the document, create undo logic
-        }catch(Exception e){
+        } catch (Exception e) {
             throw new RuntimeException();
         }
 
@@ -498,11 +469,11 @@ public class DocumentStoreImpl implements DocumentStore {
      * @param keysValues metadata key-value pairs to search for
      * @return a List of all documents whose metadata contains all the given values for the given keys. If no documents contain all the given key-value pairs, return an empty list.
      */
-    public List<Document> searchByMetadata(Map<String,String> keysValues) throws IOException{
+    public List<Document> searchByMetadata(Map<String, String> keysValues) throws IOException {
         List<Document> docList = new ArrayList<>();
 
-        for (URI uri : metadataMap.keySet()){
-            if ((uriList.contains(uri) || uriDisk.contains(uri)) && metadataMap.get(uri).equals(keysValues)){
+        for (URI uri : metadataMap.keySet()) {
+            if ((uriList.contains(uri) || uriDisk.contains(uri)) && metadataMap.get(uri).equals(keysValues)) {
                 uriPutLogic(uri);
                 docList.add(bTree.get(uri));
             }
@@ -516,16 +487,17 @@ public class DocumentStoreImpl implements DocumentStore {
      * Retrieve all documents whose text contains the given keyword AND which has the given key-value pairs in its metadata
      * Documents are returned in sorted, descending order, sorted by the number of times the keyword appears in the document.
      * Search is CASE SENSITIVE.
+     *
      * @param keyword;
      * @param keysValues;
      * @return a List of the matches. If there are no matches, return an empty list.
      */
 
-    public List<Document> searchByKeywordAndMetadata(String keyword, Map<String,String> keysValues) throws IOException{
+    public List<Document> searchByKeywordAndMetadata(String keyword, Map<String, String> keysValues) throws IOException {
         List<URI> keysValuesList = new ArrayList<>();
 
-        for (URI uri : metadataMap.keySet()){
-            if ((uriList.contains(uri) || uriDisk.contains(uri)) && metadataMap.get(uri).equals(keysValues)){
+        for (URI uri : metadataMap.keySet()) {
+            if ((uriList.contains(uri) || uriDisk.contains(uri)) && metadataMap.get(uri).equals(keysValues)) {
                 keysValuesList.add(uri);
             }
         }
@@ -539,8 +511,8 @@ public class DocumentStoreImpl implements DocumentStore {
 
         List<Document> finalList = new ArrayList<>();
 
-        for (URI uri : keysValuesList){
-            if (keywordList.contains(uri)){
+        for (URI uri : keysValuesList) {
+            if (keywordList.contains(uri)) {
                 finalList.add(bTree.get(uri));
                 uriPutLogic(uri);
             }
@@ -553,14 +525,15 @@ public class DocumentStoreImpl implements DocumentStore {
      * Retrieve all documents that contain text which starts with the given prefix AND which has the given key-value pairs in its metadata
      * Documents are returned in sorted, descending order, sorted by the number of times the prefix appears in the document.
      * Search is CASE SENSITIVE.
+     *
      * @param keywordPrefix;
      * @return a List of the matches. If there are no matches, return an empty list.
      */
-    public List<Document> searchByPrefixAndMetadata(String keywordPrefix,Map<String,String> keysValues) throws IOException{
+    public List<Document> searchByPrefixAndMetadata(String keywordPrefix, Map<String, String> keysValues) throws IOException {
         List<URI> keysValuesList = new ArrayList<>();
 
-        for (URI uri : metadataMap.keySet()){
-            if ((uriList.contains(uri) || uriDisk.contains(uri)) && metadataMap.get(uri).equals(keysValues)){
+        for (URI uri : metadataMap.keySet()) {
+            if ((uriList.contains(uri) || uriDisk.contains(uri)) && metadataMap.get(uri).equals(keysValues)) {
                 keysValuesList.add(uri);
             }
         }
@@ -573,8 +546,8 @@ public class DocumentStoreImpl implements DocumentStore {
         });
         List<Document> finalList = new ArrayList<>();
 
-        for (URI uri : keysValuesList){
-            if (keywordPrefixList.contains(uri)){
+        for (URI uri : keysValuesList) {
+            if (keywordPrefixList.contains(uri)) {
                 finalList.add(bTree.get(uri));
                 uriPutLogic(uri);
             }
@@ -586,13 +559,14 @@ public class DocumentStoreImpl implements DocumentStore {
     /**
      * Completely remove any trace of any document which has the given key-value pairs in its metadata
      * Search is CASE SENSITIVE.
+     *
      * @return a Set of URIs of the documents that were deleted.
      */
-    public Set<URI> deleteAllWithMetadata(Map<String,String> keysValues) throws IOException{
+    public Set<URI> deleteAllWithMetadata(Map<String, String> keysValues) throws IOException {
         List<URI> matchingMetadata = new ArrayList<>();
 
-        for (URI uri : metadataMap.keySet()){
-            if ((uriList.contains(uri) || uriDisk.contains(uri)) && metadataMap.get(uri).equals(keysValues)){
+        for (URI uri : metadataMap.keySet()) {
+            if ((uriList.contains(uri) || uriDisk.contains(uri)) && metadataMap.get(uri).equals(keysValues)) {
                 matchingMetadata.add(uri);
             }
         }
@@ -605,16 +579,17 @@ public class DocumentStoreImpl implements DocumentStore {
     /**
      * Completely remove any trace of any document which contains the given keyword AND which has the given key-value pairs in its metadata
      * Search is CASE SENSITIVE.
+     *
      * @param keyword;
      * @return a Set of URIs of the documents that were deleted.
      */
-    public Set<URI> deleteAllWithKeywordAndMetadata(String keyword,Map<String,String> keysValues) throws IOException{
+    public Set<URI> deleteAllWithKeywordAndMetadata(String keyword, Map<String, String> keysValues) throws IOException {
         List<URI> keywordList = docTrie.getSorted(keyword, createComparator(keyword));
         List<URI> finalList = new ArrayList<>();
 
-        for (URI uri : metadataMap.keySet()){
-            if ((uriList.contains(uri) || uriDisk.contains(uri)) && metadataMap.get(uri).equals(keysValues)){
-                if (keywordList.contains(uri)){
+        for (URI uri : metadataMap.keySet()) {
+            if ((uriList.contains(uri) || uriDisk.contains(uri)) && metadataMap.get(uri).equals(keysValues)) {
+                if (keywordList.contains(uri)) {
                     finalList.add(uri);
                 }
             }
@@ -627,16 +602,17 @@ public class DocumentStoreImpl implements DocumentStore {
     /**
      * Completely remove any trace of any document which contains a word that has the given prefix AND which has the given key-value pairs in its metadata
      * Search is CASE SENSITIVE.
+     *
      * @param keywordPrefix;
      * @return a Set of URIs of the documents that were deleted.
      */
-    public Set<URI> deleteAllWithPrefixAndMetadata(String keywordPrefix,Map<String,String> keysValues) throws IOException{
+    public Set<URI> deleteAllWithPrefixAndMetadata(String keywordPrefix, Map<String, String> keysValues) throws IOException {
         List<URI> keywordPrefixList = docTrie.getAllWithPrefixSorted(keywordPrefix, createComparator(keywordPrefix));
         List<URI> finalList = new ArrayList<>();
 
-        for (URI uri : metadataMap.keySet()){
-            if ((uriList.contains(uri) || uriDisk.contains(uri)) && metadataMap.get(uri).equals(keysValues)){
-                if (keywordPrefixList.contains(uri)){
+        for (URI uri : metadataMap.keySet()) {
+            if ((uriList.contains(uri) || uriDisk.contains(uri)) && metadataMap.get(uri).equals(keysValues)) {
+                if (keywordPrefixList.contains(uri)) {
                     finalList.add(uri);
                 }
             }
@@ -646,11 +622,11 @@ public class DocumentStoreImpl implements DocumentStore {
         return new HashSet<>(finalList);
     }
 
-    private void deleteListLogic(List<URI> doomedURIList){
+    private void deleteListLogic(List<URI> doomedURIList) {
         deleteListUndoLogic(doomedURIList);
 
         //logic to delete documents in both memory and disk
-        for (URI uri : doomedURIList){
+        for (URI uri : doomedURIList) {
             if (uriList.contains(uri)) {
                 removeDocumentFromHeap(bTree.get(uri));
             }
@@ -662,12 +638,12 @@ public class DocumentStoreImpl implements DocumentStore {
         }
     }
 
-    public void deleteListUndoLogic(List<URI> doomedURIList){
+    public void deleteListUndoLogic(List<URI> doomedURIList) {
         boolean createCommandSet = doomedURIList.size() > 1;
 
         CommandSet<URI> commandSet = new CommandSet<>();
 
-        for (URI uri : doomedURIList){
+        for (URI uri : doomedURIList) {
             Document doc = bTree.get(uri);
             long lastUsedTime = doc.getLastUseTime();
             Set<URI> tempDiskSet = new HashSet<>(uriDisk);
@@ -680,7 +656,7 @@ public class DocumentStoreImpl implements DocumentStore {
                     bTree.put(uri, doc);
                     try {
                         bTree.moveToDisk(uri);
-                    } catch (IOException e){
+                    } catch (IOException e) {
                         throw new RuntimeException();
                     }
                 } else {
@@ -702,20 +678,20 @@ public class DocumentStoreImpl implements DocumentStore {
             }
         }
 
-        if (createCommandSet){
+        if (createCommandSet) {
             undoStack.push(commandSet);
         }
     }
 
-    private void removeDocumentFromHeap(Document doc){
+    private void removeDocumentFromHeap(Document doc) {
         doc.setLastUseTime(0);
         docHeap.reHeapify(new BTreeAccess(doc.getKey()));
         docHeap.remove();
     }
 
-    private List<Document> reHeapify(List<Document> docList){
+    private List<Document> reHeapify(List<Document> docList) {
         long time = System.nanoTime();
-        for (Document doc : docList){
+        for (Document doc : docList) {
             doc.setLastUseTime(time);  //update last used time
             docHeap.reHeapify(new BTreeAccess(doc.getKey()));  //order the heap
         }
@@ -723,19 +699,18 @@ public class DocumentStoreImpl implements DocumentStore {
         return docList;
     }
 
-    private void reHeapify(URI uri){
+    private void reHeapify(URI uri) {
         bTree.get(uri).setLastUseTime(System.nanoTime());  //update last used time
         docHeap.reHeapify(new BTreeAccess(uri));  //order the heap
     }
 
-    private int getTotalMemory(){
+    private int getTotalMemory() {
         int memory = 0;
         for (URI uri : uriList) {
             Document doc = bTree.get(uri);
             if (doc.getDocumentTxt() != null) {
                 memory += doc.getDocumentTxt().getBytes().length;
-            }
-            else {
+            } else {
                 memory += doc.getDocumentBinaryData().length;
             }
         }
@@ -743,24 +718,25 @@ public class DocumentStoreImpl implements DocumentStore {
         return memory;
     }
 
-    private void moveLeastRecentlyUsedDocumentToDisk(){
+    private void moveLeastRecentlyUsedDocumentToDisk() {
         try {
             bTree.moveToDisk(docHeap.peek().getUri());
             uriList.remove(docHeap.peek().getUri());
             uriDisk.add(docHeap.peek().uri);
             docHeap.remove();
-        }catch (IOException e){
+        } catch (IOException e) {
             throw new RuntimeException();
         }
     }
 
     /**
      * set maximum number of documents that may be stored
+     *
      * @param limit;
      * @throws IllegalArgumentException if limit < 1
      */
-    public void setMaxDocumentCount(int limit){
-        if (limit < 1){
+    public void setMaxDocumentCount(int limit) {
+        if (limit < 1) {
             throw new IllegalArgumentException("limit cannot be less than 1");
         }
         this.docLimit = limit;
@@ -769,32 +745,33 @@ public class DocumentStoreImpl implements DocumentStore {
 
     /**
      * set maximum number of bytes of memory that may be used by all the documents in memory combined
+     *
      * @param limit;
      * @throws IllegalArgumentException if limit < 1
      */
-    public void setMaxDocumentBytes(int limit){
-        if (limit < 1){
+    public void setMaxDocumentBytes(int limit) {
+        if (limit < 1) {
             throw new IllegalArgumentException("limit cannot be less than 1");
         }
         this.memoryLimit = limit;
         this.complyWithLimits();
     }
 
-    private void complyWithLimits(){
-        if (docLimit != 0){
-            while(uriList.size() > docLimit){
+    private void complyWithLimits() {
+        if (docLimit != 0) {
+            while (uriList.size() > docLimit) {
                 moveLeastRecentlyUsedDocumentToDisk();
             }
         }
 
-        if (memoryLimit != 0){
-            while(getTotalMemory() > memoryLimit){
-               moveLeastRecentlyUsedDocumentToDisk();
+        if (memoryLimit != 0) {
+            while (getTotalMemory() > memoryLimit) {
+                moveLeastRecentlyUsedDocumentToDisk();
             }
         }
     }
 
-    private Document uriPutLogic(URI uri){
+    private Document uriPutLogic(URI uri) {
         if (uriDisk.contains(uri)) {
             uriDisk.remove(uri);
             uriList.add(uri);
@@ -811,28 +788,26 @@ public class DocumentStoreImpl implements DocumentStore {
         private URI uri;
         private long lastUseTime;
 
-        public BTreeAccess(URI uri){
+        public BTreeAccess(URI uri) {
             this.uri = uri;
             this.lastUseTime = bTree.get(uri).getLastUseTime();
         }
 
-        public Document getDocument(){
+        public Document getDocument() {
             return bTree.get(this.uri);
         }
 
-        public URI getUri(){
+        public URI getUri() {
             return this.uri;
         }
 
         @Override
         public int compareTo(BTreeAccess other) {
-            if (this.getDocument().getLastUseTime() == other.getDocument().getLastUseTime()){
+            if (this.getDocument().getLastUseTime() == other.getDocument().getLastUseTime()) {
                 return 0;
-            }
-            else if (this.getDocument().getLastUseTime() > other.getDocument().getLastUseTime()){  //the less the last use time is, the longer the document has been untouched for
+            } else if (this.getDocument().getLastUseTime() > other.getDocument().getLastUseTime()) {  //the less the last use time is, the longer the document has been untouched for
                 return 1;
-            }
-            else{
+            } else {
                 return -1;
             }
         }

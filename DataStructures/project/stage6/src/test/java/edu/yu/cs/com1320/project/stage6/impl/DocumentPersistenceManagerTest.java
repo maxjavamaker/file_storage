@@ -20,7 +20,7 @@ public class DocumentPersistenceManagerTest {
 
     @BeforeEach
     public void setup() {
-        persistenceManager = new DocumentPersistenceManager(new File(System.getProperty("user.dir")));
+        persistenceManager = new DocumentPersistenceManager(new File("C:\\Users\\rosin\\OneDrive\\Documents\\personal projects"));
 
         String text1 = "text1";
         String text2 = "text2";
