@@ -900,6 +900,30 @@ class DocumentStoreImplTest {
     }
 
     @Test
+    public void searchByKeyWordMetadataCorrectOrder(){
+        try {
+            documentStore.put(new ByteArrayInputStream("text1 text1 text1".getBytes()), uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream("text1 text2 text2 text2 text2".getBytes()), uri2, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream("text1 text1".getBytes()), uri3, DocumentStore.DocumentFormat.TXT);
+
+            documentStore.setMetadata(uri1, key1, value1);
+            documentStore.setMetadata(uri2, key1, value1);
+            documentStore.setMetadata(uri3, key1, value1);
+
+            Map<String, String> myMap = new HashMap<>();
+            myMap.put(key1, value1);
+
+            List<Document> myList = documentStore.searchByKeywordAndMetadata(text1, myMap);
+            assert(myList.get(0).equals(documentStore.get(uri1)));
+            assert(myList.get(1).equals(documentStore.get(uri3)));
+            assert(myList.get(2).equals(documentStore.get(uri2)));
+
+        } catch (IOException e){
+            e.printStackTrace(System.out);
+        }
+    }
+
+    @Test
     public void searchByPrefixAndMetadata(){
         try {
             documentStore.put(new ByteArrayInputStream(text1.getBytes()), uri1, DocumentStore.DocumentFormat.TXT);
@@ -961,6 +985,29 @@ class DocumentStoreImplTest {
             assertNull(documentStore.get(uri1));
             assertNotNull(documentStore.get(uri2));
             assertNotNull(documentStore.get(uri3));
+
+        } catch (IOException e){
+            e.printStackTrace(System.out);
+        }
+    }
+
+    @Test
+    public void searchByPrefixMetadataCorrectOrder(){
+        try {
+            documentStore.put(new ByteArrayInputStream("text1 text12 text13".getBytes()), uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream("text1 text text text text".getBytes()), uri2, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream("text1 text12".getBytes()), uri3, DocumentStore.DocumentFormat.TXT);
+
+            documentStore.setMetadata(uri2, key1, value1);
+            documentStore.setMetadata(uri3, key1, value1);
+
+            Map<String, String> myMap = new HashMap<>();
+            myMap.put(key1, value1);
+
+            List<Document> myList = documentStore.searchByPrefixAndMetadata(text1, myMap);
+
+            assert(myList.get(0).equals(documentStore.get(uri3)));
+            assert(myList.get(1).equals(documentStore.get(uri2)));
 
         } catch (IOException e){
             e.printStackTrace(System.out);

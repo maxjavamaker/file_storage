@@ -517,8 +517,22 @@ public class DocumentStoreImpl implements DocumentStore {
                 uriPutLogic(uri);
             }
         }
-
+        Collections.sort(finalList, targetedKeywordComparator(keyword));
         return reHeapify(finalList);
+    }
+
+    private Comparator<Document> targetedKeywordComparator(String target){
+        Comparator<Document> wordCountComparator = Comparator.comparing(document -> {
+            int wordCount = 0;
+            for (String word : document.getWords()) {
+                if (word.equals(target)) {
+                    wordCount += document.wordCount(word);
+                }
+            }
+            return wordCount;
+        });
+
+        return wordCountComparator.reversed(); //return the comparator so its sorts in descending order
     }
 
     /**
@@ -552,8 +566,22 @@ public class DocumentStoreImpl implements DocumentStore {
                 uriPutLogic(uri);
             }
         }
-
+        Collections.sort(finalList, targetedPrefixComparator(keywordPrefix));
         return reHeapify(finalList);
+    }
+
+    private Comparator<Document> targetedPrefixComparator(String target){
+        Comparator<Document> wordCountComparator = Comparator.comparing(document -> {
+            int wordCount = 0;
+            for (String word : document.getWords()) {
+                if (word.startsWith(target)) {
+                    wordCount += document.wordCount(word);
+                }
+            }
+            return wordCount;
+        });
+
+        return wordCountComparator.reversed(); //return the comparator so its sorts in descending order
     }
 
     /**
