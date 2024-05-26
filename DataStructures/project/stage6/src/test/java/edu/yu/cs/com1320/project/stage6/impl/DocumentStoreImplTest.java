@@ -1151,4 +1151,22 @@ class DocumentStoreImplTest {
             e.printStackTrace(System.out);
         }
     }
+
+    @Test
+    public void stage6PushToDiskViaMaxDocCountViaUndoDelete(){
+        try {
+            documentStore.put(new ByteArrayInputStream("text1".getBytes()), uri1, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream("text2".getBytes()), uri2, DocumentStore.DocumentFormat.TXT);
+            documentStore.put(new ByteArrayInputStream("text3".getBytes()), uri3, DocumentStore.DocumentFormat.TXT);
+
+            documentStore.delete(uri1);
+
+            documentStore.setMaxDocumentCount(2);
+
+            documentStore.undo();
+
+        } catch (IOException e){
+            e.printStackTrace(System.out);
+        }
+    }
 }

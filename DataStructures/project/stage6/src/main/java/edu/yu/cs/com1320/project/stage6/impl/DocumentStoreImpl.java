@@ -673,12 +673,11 @@ public class DocumentStoreImpl implements DocumentStore {
 
         for (URI uri : doomedURIList) {
             Document doc = bTree.get(uri);
-            long lastUsedTime = doc.getLastUseTime();
             Set<URI> tempDiskSet = new HashSet<>(uriDisk);
 
             Consumer<URI> consumer = restoreDocument -> {
                 checkIfDocExceedsLimit(doc);
-                doc.setLastUseTime(lastUsedTime);
+                doc.setLastUseTime(System.nanoTime());
                 if (tempDiskSet.contains(uri)) {
                     uriDisk.add(uri);
                     bTree.put(uri, doc);
