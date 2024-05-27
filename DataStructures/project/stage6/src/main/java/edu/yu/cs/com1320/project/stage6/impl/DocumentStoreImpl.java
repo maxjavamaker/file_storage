@@ -677,7 +677,7 @@ public class DocumentStoreImpl implements DocumentStore {
 
             Consumer<URI> consumer = restoreDocument -> {
                 checkIfDocExceedsLimit(doc);
-                doc.setLastUseTime(System.nanoTime());
+                doc.setLastUseTime(doc.getLastUseTime());
                 if (tempDiskSet.contains(uri)) {
                     uriDisk.add(uri);
                     bTree.put(uri, doc);
