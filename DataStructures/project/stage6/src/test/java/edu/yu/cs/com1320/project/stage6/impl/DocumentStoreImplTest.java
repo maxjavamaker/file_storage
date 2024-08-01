@@ -1157,13 +1157,21 @@ class DocumentStoreImplTest {
         try {
             documentStore.put(new ByteArrayInputStream("text1".getBytes()), uri1, DocumentStore.DocumentFormat.TXT);
             documentStore.put(new ByteArrayInputStream("text2".getBytes()), uri2, DocumentStore.DocumentFormat.TXT);
-            documentStore.put(new ByteArrayInputStream("text3".getBytes()), uri3, DocumentStore.DocumentFormat.TXT);
 
-            documentStore.delete(uri1);
+            Document doc1 = documentStore.get(uri1);
+            Document doc2 = documentStore.get(uri2);
 
+            documentStore.delete(uri2);
             documentStore.setMaxDocumentCount(2);
 
-            documentStore.undo();
+            documentStore.put(new ByteArrayInputStream("text3".getBytes()), uri3, DocumentStore.DocumentFormat.TXT);
+
+            assertNotNull(documentStore.get(uri1));
+            assertNotNull(documentStore.get(uri3));
+            assertNull(documentStore.get(uri2));
+
+            documentStore.undo(uri2);
+
 
         } catch (IOException e){
             e.printStackTrace(System.out);
